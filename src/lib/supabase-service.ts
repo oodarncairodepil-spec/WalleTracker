@@ -1,4 +1,4 @@
-import { supabase, Transaction } from './supabase'
+import { supabase, Transaction, Profile } from './supabase'
 import { User } from '@supabase/supabase-js'
 
 // Authentication functions
@@ -28,9 +28,20 @@ export const authService = {
 
   // Sign out
   async signOut() {
-    const { error } = await supabase.auth.signOut()
-    return { error }
+    try {
+      const { error } = await supabase.auth.signOut()
+      return { error }
+    } catch (error: any) {
+      // Handle auth session errors gracefully
+      if (error?.message?.includes('Auth session missing') || error?.message?.includes('session_not_found')) {
+        // Treat as successful signout if session is already missing
+        return { error: null }
+      }
+      return { error }
+    }
   },
+
+
 
   // Get current user
   async getCurrentUser(): Promise<User | null> {
@@ -49,7 +60,7 @@ export const authService = {
 // Transaction functions
 export const transactionService = {
   // Get all transactions for the current user
-  async getTransactions(): Promise<{ data: Transaction[] | null; error: any }> {
+  async getTransactions(): Promise<{ data: Transaction[] | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -59,7 +70,7 @@ export const transactionService = {
   },
 
   // Add a new transaction
-  async addTransaction(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>): Promise<{ data: Transaction | null; error: any }> {
+  async addTransaction(transaction: Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>): Promise<{ data: Transaction | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('transactions')
       .insert([transaction])
@@ -70,7 +81,7 @@ export const transactionService = {
   },
 
   // Update a transaction
-  async updateTransaction(id: string, updates: Partial<Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>>): Promise<{ data: Transaction | null; error: any }> {
+  async updateTransaction(id: string, updates: Partial<Omit<Transaction, 'id' | 'created_at' | 'updated_at' | 'user_id'>>): Promise<{ data: Transaction | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('transactions')
       .update(updates)
@@ -82,7 +93,7 @@ export const transactionService = {
   },
 
   // Delete a transaction
-  async deleteTransaction(id: string): Promise<{ error: any }> {
+  async deleteTransaction(id: string): Promise<{ error: Error | null }> {
     const { error } = await supabase
       .from('transactions')
       .delete()
@@ -92,7 +103,7 @@ export const transactionService = {
   },
 
   // Get transactions by category
-  async getTransactionsByCategory(category: string): Promise<{ data: Transaction[] | null; error: any }> {
+  async getTransactionsByCategory(category: string): Promise<{ data: Transaction[] | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -103,7 +114,7 @@ export const transactionService = {
   },
 
   // Get transactions by type (income/expense)
-  async getTransactionsByType(type: 'income' | 'expense'): Promise<{ data: Transaction[] | null; error: any }> {
+  async getTransactionsByType(type: 'income' | 'expense'): Promise<{ data: Transaction[] | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -114,7 +125,7 @@ export const transactionService = {
   },
 
   // Get transactions by date range
-  async getTransactionsByDateRange(startDate: string, endDate: string): Promise<{ data: Transaction[] | null; error: any }> {
+  async getTransactionsByDateRange(startDate: string, endDate: string): Promise<{ data: Transaction[] | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -129,7 +140,7 @@ export const transactionService = {
 // Profile functions
 export const profileService = {
   // Get user profile
-  async getProfile(): Promise<{ data: any; error: any }> {
+  async getProfile(): Promise<{ data: Profile | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -139,7 +150,7 @@ export const profileService = {
   },
 
   // Update user profile
-  async updateProfile(updates: { full_name?: string; avatar_url?: string }): Promise<{ data: any; error: any }> {
+  async updateProfile(updates: { full_name?: string; avatar_url?: string }): Promise<{ data: Profile | null; error: Error | null }> {
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)

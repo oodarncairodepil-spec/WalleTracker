@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { authService } from '@/lib/supabase-service'
+import { authService } from '../lib/supabase-service'
 import { toast } from 'sonner'
 
 interface AuthContextType {
@@ -67,17 +67,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+
+
   const signOut = async () => {
     try {
       setLoading(true)
+      
+      // Check if user is already signed out
+      if (!user) {
+        toast.success('Already signed out!')
+        return
+      }
+      
       const { error } = await authService.signOut()
       if (error) {
+        // Handle specific auth session errors gracefully
+        if (error.message.includes('Auth session missing') || error.message.includes('session_not_found')) {
+          toast.success('Signed out successfully!')
+          return
+        }
         toast.error(error.message)
         throw error
       }
       toast.success('Signed out successfully!')
-    } catch (error) {
-      throw error
+    } catch (error: any) {
+      // Handle auth session errors gracefully
+      if (error?.message?.includes('Auth session missing') || error?.message?.includes('session_not_found')) {
+        toast.success('Signed out successfully!')
+        return
+      }
+      console.error('Sign out error:', error)
+      toast.error('Failed to sign out. Please try again.')
     } finally {
       setLoading(false)
     }

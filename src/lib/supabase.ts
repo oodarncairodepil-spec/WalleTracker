@@ -11,6 +11,22 @@ export const isSupabaseConfigured = () => {
   return supabaseUrl !== 'https://placeholder.supabase.co' && supabaseAnonKey !== 'placeholder-key'
 }
 
+// Test Supabase connection
+export const testSupabaseConnection = async () => {
+  try {
+    const { data, error } = await supabase.from('profiles').select('count').limit(1)
+    if (error) {
+      console.error('Supabase connection test failed:', error)
+      return false
+    }
+    console.log('Supabase connection test successful')
+    return true
+  } catch (error) {
+    console.error('Supabase connection test error:', error)
+    return false
+  }
+}
+
 // Database types
 export interface Transaction {
   id: string

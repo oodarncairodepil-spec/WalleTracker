@@ -1,18 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Badge } from "./ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Separator } from "./ui/separator";
 import { toast } from "sonner";
 import { Wallet, Plus, TrendingUp, TrendingDown, Filter, Trash2, Calendar } from "lucide-react";
-import { transactionService } from "@/lib/supabase-service";
-import { isSupabaseConfigured } from "@/lib/supabase";
-import { useAuth } from "@/contexts/auth-context";
+import { transactionService } from "../lib/supabase-service";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { useAuth } from "../contexts/auth-context";
 
 interface Transaction {
   id: string;
@@ -284,6 +286,7 @@ export function ExpenseTracker() {
             Filters
           </CardTitle>
         </CardHeader>
+        <Separator />
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -324,6 +327,8 @@ export function ExpenseTracker() {
         </CardContent>
       </Card>
 
+      <Separator className="my-6" />
+
       {/* Transactions List */}
       <Card>
         <CardHeader>
@@ -342,9 +347,9 @@ export function ExpenseTracker() {
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {filteredTransactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground px-6">
               <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">No transactions found</p>
               <p className="text-sm">
@@ -354,50 +359,61 @@ export function ExpenseTracker() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {filteredTransactions.map((transaction) => (
-                <div
-                  key={transaction.id}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="text-2xl">
-                      {getCategoryEmoji(transaction.category, transaction.type)}
-                    </div>
-                    <div>
-                      <p className="font-medium">{transaction.description}</p>
-                      <p className="text-sm text-muted-foreground">
+            <div className="max-h-96 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="w-12"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTransactions.map((transaction) => (
+                    <TableRow key={transaction.id} className="hover:bg-muted/50">
+                      <TableCell className="text-xl">
+                        {getCategoryEmoji(transaction.category, transaction.type)}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {transaction.description}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
                         {getCategoryLabel(transaction.category, transaction.type)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
                         {new Date(transaction.date).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant={transaction.type === 'income' ? 'default' : 'destructive'}
-                      className={transaction.type === 'income' ? 'bg-green-600' : ''}
-                    >
-                      {transaction.type === 'income' ? '+' : ''}
-                      {formatCurrency(Math.abs(transaction.amount))}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteTransaction(transaction.id)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge
+                          variant={transaction.type === 'income' ? 'default' : 'destructive'}
+                          className={transaction.type === 'income' ? 'bg-green-600' : ''}
+                        >
+                          {transaction.type === 'income' ? '+' : ''}
+                          {formatCurrency(Math.abs(transaction.amount))}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteTransaction(transaction.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>

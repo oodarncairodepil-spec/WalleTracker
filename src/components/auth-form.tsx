@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useAuth } from '@/contexts/auth-context'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { useAuth } from '../contexts/auth-context'
 
 interface AuthFormProps {
   mode: 'signin' | 'signup'
@@ -35,6 +35,8 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
       setIsLoading(false)
     }
   }
+
+
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -85,6 +87,8 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
             {isLoading ? 'Loading...' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
           </Button>
         </form>
+
+        
         <div className="mt-4 text-center">
           <Button variant="link" onClick={onToggleMode}>
             {mode === 'signin'

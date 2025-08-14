@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { migrateLocalDataToSupabase, getLocalStorageTransactions } from '@/lib/data-migration'
+import { Button } from './ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Badge } from './ui/badge'
+import { migrateLocalDataToSupabase, getLocalStorageTransactions } from '../lib/data-migration'
 import { DatabaseIcon, UploadIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react'
 
 interface MigrationDialogProps {
