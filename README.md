@@ -31,7 +31,7 @@ A modern, full-stack expense tracker built with Next.js, TypeScript, Supabase, a
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/WalleTracker.git
+git clone https://github.com/oodarncairodepil-spec/WalleTracker.git
 cd WalleTracker
 ```
 
