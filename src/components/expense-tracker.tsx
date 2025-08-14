@@ -12,7 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Separator } from "./ui/separator";
 import { toast } from "sonner";
 import { Wallet, Plus, TrendingUp, TrendingDown, Filter, Trash2, Calendar } from "lucide-react";
-// Removed unused imports
+import { transactionService } from "../lib/supabase-service";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { useAuth } from "../contexts/auth-context";
 
 interface Transaction {
   id: string;
@@ -46,6 +48,7 @@ const categories = {
 };
 
 export function ExpenseTracker() {
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -54,21 +57,52 @@ export function ExpenseTracker() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Load transactions from localStorage on mount
+  // Load transactions from Supabase on mount
   useEffect(() => {
-    const saved = localStorage.getItem('walletracker-transactions');
-    if (saved) {
-      setTransactions(JSON.parse(saved));
+    if (user && isSupabaseConfigured()) {
+      loadTransactions();
+    } else {
+      // Fallback to localStorage if not authenticated or Supabase not configured
+      const saved = localStorage.getItem('walletracker-transactions');
+      if (saved) {
+        setTransactions(JSON.parse(saved));
+      }
+      setLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  // Save transactions to localStorage whenever transactions change
+  // Save to localStorage as backup when transactions change
   useEffect(() => {
-    localStorage.setItem('walletracker-transactions', JSON.stringify(transactions));
-  }, [transactions]);
+    if (!loading) {
+      localStorage.setItem('walletracker-transactions', JSON.stringify(transactions));
+    }
+  }, [transactions, loading]);
 
-  const addTransaction = () => {
+  const loadTransactions = async () => {
+    try {
+      const { data, error } = await transactionService.getTransactions();
+      if (error) {
+        console.error('Error loading transactions:', error);
+        toast.error('Failed to load transactions');
+        // Fallback to localStorage
+        const saved = localStorage.getItem('walletracker-transactions');
+        if (saved) {
+          setTransactions(JSON.parse(saved));
+        }
+      } else {
+        setTransactions(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      toast.error('Failed to load transactions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addTransaction = async () => {
     if (!description.trim() || !amount || !category) {
       toast.error('Please fill in all fields');
       return;
@@ -80,8 +114,7 @@ export function ExpenseTracker() {
       return;
     }
 
-    const transaction: Transaction = {
-      id: Date.now().toString(),
+    const transactionData = {
       description: description.trim(),
       amount: type === 'expense' ? -Math.abs(numAmount) : Math.abs(numAmount),
       category,
@@ -89,7 +122,31 @@ export function ExpenseTracker() {
       date: new Date().toISOString(),
     };
 
-    setTransactions(prev => [transaction, ...prev]);
+    if (user && isSupabaseConfigured()) {
+      try {
+        const { data, error } = await transactionService.addTransaction(transactionData);
+        if (error) {
+          console.error('Error adding transaction:', error);
+          toast.error('Failed to add transaction');
+          return;
+        }
+        if (data) {
+          setTransactions(prev => [data, ...prev]);
+        }
+      } catch (error) {
+        console.error('Error adding transaction:', error);
+        toast.error('Failed to add transaction');
+        return;
+      }
+    } else {
+      // Fallback to localStorage
+      const transaction: Transaction = {
+        id: Date.now().toString(),
+        ...transactionData,
+      };
+      setTransactions(prev => [transaction, ...prev]);
+    }
+
     setDescription('');
     setAmount('');
     setCategory('');
@@ -97,7 +154,22 @@ export function ExpenseTracker() {
     toast.success('Transaction added successfully!');
   };
 
-  const deleteTransaction = (id: string) => {
+  const deleteTransaction = async (id: string) => {
+    if (user && isSupabaseConfigured()) {
+      try {
+        const { error } = await transactionService.deleteTransaction(id);
+        if (error) {
+          console.error('Error deleting transaction:', error);
+          toast.error('Failed to delete transaction');
+          return;
+        }
+      } catch (error) {
+        console.error('Error deleting transaction:', error);
+        toast.error('Failed to delete transaction');
+        return;
+      }
+    }
+    
     setTransactions(prev => prev.filter(t => t.id !== id));
     toast.success('Transaction deleted');
   };
@@ -145,6 +217,24 @@ export function ExpenseTracker() {
     const category = categoryList.find(c => c.value === categoryValue);
     return category?.label || 'Other';
   };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4 max-w-md space-y-6">
+        <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2 text-2xl">
+              <Wallet className="h-8 w-8" />
+              WalleTracker
+            </CardTitle>
+            <div className="mt-4">
+              <p className="text-blue-100 text-sm">Loading...</p>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-4 max-w-md space-y-6">
