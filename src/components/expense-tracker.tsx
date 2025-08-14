@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Wallet, Plus, TrendingUp, TrendingDown, Filter, Trash2, Calendar } from "lucide-react";
+import { transactionService } from "@/lib/supabase-service";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { useAuth } from "@/contexts/auth-context";
 
 interface Transaction {
   id: string;
