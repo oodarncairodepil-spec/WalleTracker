@@ -14,7 +14,7 @@ export const isSupabaseConfigured = () => {
 // Test Supabase connection
 export const testSupabaseConnection = async () => {
   try {
-    const { data, error } = await supabase.from('profiles').select('count').limit(1)
+    const { data: _data, error } = await supabase.from('profiles').select('count').limit(1)
     if (error) {
       console.error('Supabase connection test failed:', error)
       return false

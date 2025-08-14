@@ -12,9 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Separator } from "./ui/separator";
 import { toast } from "sonner";
 import { Wallet, Plus, TrendingUp, TrendingDown, Filter, Trash2, Calendar } from "lucide-react";
-import { transactionService } from "../lib/supabase-service";
-import { isSupabaseConfigured } from "../lib/supabase";
-import { useAuth } from "../contexts/auth-context";
+// Removed unused imports
 
 interface Transaction {
   id: string;

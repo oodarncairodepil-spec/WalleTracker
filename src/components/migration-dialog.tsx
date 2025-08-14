@@ -37,7 +37,7 @@ export function MigrationDialog({ open, onOpenChange, onMigrationComplete }: Mig
           onOpenChange(false)
         }, 2000)
       }
-    } catch (error) {
+    } catch {
       setMigrationResult({
         success: false,
         migratedCount: 0,

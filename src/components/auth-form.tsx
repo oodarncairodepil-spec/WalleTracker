@@ -29,7 +29,7 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
       } else {
         await signUp(email, password, fullName)
       }
-    } catch (error) {
+    } catch {
       // Error handling is done in the auth context
     } finally {
       setIsLoading(false)

@@ -90,9 +90,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error
       }
       toast.success('Signed out successfully!')
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle auth session errors gracefully
-      if (error?.message?.includes('Auth session missing') || error?.message?.includes('session_not_found')) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (errorMessage.includes('Auth session missing') || errorMessage.includes('session_not_found')) {
         toast.success('Signed out successfully!')
         return
       }
