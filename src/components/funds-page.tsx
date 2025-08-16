@@ -215,7 +215,7 @@ export function FundsPage() {
       
       {/* Dialog Content for Add/Edit */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingFund ? 'Edit Fund' : 'Add New Fund'}

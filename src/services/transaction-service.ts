@@ -18,7 +18,7 @@ export class TransactionService {
           *,
           fund:funds(id, name, balance)
         `)
-        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Error fetching transactions:', error)

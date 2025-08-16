@@ -356,6 +356,12 @@ export function TransactionHistory() {
     const day = date.getDate()
     const month = date.toLocaleDateString('en-US', { month: 'short' })
     const year = date.getFullYear()
+    const time = date.toLocaleTimeString('en-US', { 
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
     
     // Add ordinal suffix to day
     const getOrdinalSuffix = (day: number) => {
@@ -368,7 +374,7 @@ export function TransactionHistory() {
       }
     }
     
-    return `${day}${getOrdinalSuffix(day)} ${month} ${year}`
+    return `${day}${getOrdinalSuffix(day)} ${month} ${year} ${time}`
   }
 
   const filteredTransactions = transactions.filter(transaction => {
@@ -429,7 +435,7 @@ export function TransactionHistory() {
                 Filter
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Filter Transactions</DialogTitle>
                 <DialogDescription>
@@ -515,7 +521,7 @@ export function TransactionHistory() {
                 Add
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingTransaction ? 'Edit Transaction' : 'Add New Transaction'}
@@ -723,7 +729,7 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {formatDate(transaction.date)}
+                          {formatDate(transaction.created_at || transaction.date)}
                         </div>
                       </div>
                     </div>
@@ -753,7 +759,7 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {formatDate(transaction.date)}
+                          {formatDate(transaction.created_at || transaction.date)}
                         </div>
                       </div>
                     </div>
