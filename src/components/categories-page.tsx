@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from 'sonner'
 import { Plus, ChevronDown, Target } from 'lucide-react'
 import { categoriesService } from '../services/categories-service'
+import { transactionService } from '../services/transaction-service'
 import type { Category } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 
@@ -27,6 +28,7 @@ export function CategoriesPage() {
   const { user } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
   const [budgetSummary, setBudgetSummary] = useState<Array<{id: string, budgetAmount: number, spent: number, remaining: number}>>([])
+  const [categoryTotals, setCategoryTotals] = useState<Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }>>({})
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'add-category' | 'add-subcategory' | 'edit'>('add-category')
@@ -58,6 +60,7 @@ export function CategoriesPage() {
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [budgetAmount, setBudgetAmount] = useState('')
   const [budgetPeriod, setBudgetPeriod] = useState<'monthly' | 'weekly' | '10days'>('monthly')
+  const [status, setStatus] = useState<boolean>(true) // true = active, false = inactive
   
   const [selectedPeriod] = useState<'monthly' | 'weekly' | '10days'>('monthly')
 
@@ -72,7 +75,7 @@ export function CategoriesPage() {
     
     if (error) {
       console.error('Error loading categories:', error)
-      toast.error('Failed to load categories')
+      toast.error('Failed to load categories', { duration: 1000 })
       setCategories([])
     } else {
       if (!data || data.length === 0) {
@@ -125,18 +128,90 @@ export function CategoriesPage() {
     }
   }, [user, selectedPeriod])
 
+  const loadCategoryTotals = useCallback(async () => {
+    if (!user) {
+      console.log('[CATEGORIES DEBUG] No user, skipping category totals load')
+      return
+    }
+    
+    try {
+      console.log('[CATEGORIES DEBUG] Loading category totals for user:', user.id)
+      const totals = await transactionService.getCategoryTotals()
+      console.log('[CATEGORIES DEBUG] Raw totals from service:', totals)
+      
+      // Keep original totals for individual categories (both main and sub)
+      // Also create aggregated totals for main categories that include their subcategories
+      const aggregatedTotals: Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }> = {}
+      
+      // First, copy all direct category totals
+      Object.entries(totals).forEach(([categoryId, total]) => {
+        aggregatedTotals[categoryId] = { ...total }
+        console.log(`[CATEGORIES DEBUG] Direct total for ${categoryId}:`, total)
+      })
+      
+      console.log('[CATEGORIES DEBUG] Available categories for aggregation:', categories.map(c => ({ id: c.id, name: c.name, parent_id: c.parent_id, type: c.type, budget_amount: c.budget_amount })))
+      
+      // Then, for main categories, add their subcategories' totals
+      categories.forEach(category => {
+        if (!category.parent_id) {
+          // This is a main category, find all its subcategories and add their totals
+          const subcategories = categories.filter(c => c.parent_id === category.id)
+          console.log(`[CATEGORIES DEBUG] Main category ${category.name} (${category.id}) has subcategories:`, subcategories.map(s => s.name))
+          
+          // Initialize main category totals if it doesn't exist and has subcategories
+          if (subcategories.length > 0 && !aggregatedTotals[category.id]) {
+            aggregatedTotals[category.id] = {
+              income: 0,
+              expense: 0,
+              type: category.type,
+              count: 0
+            }
+            console.log(`[CATEGORIES DEBUG] Initialized main category ${category.name} totals`)
+          }
+          
+          subcategories.forEach(subcategory => {
+            const subcategoryTotal = totals[subcategory.id]
+            console.log(`[CATEGORIES DEBUG] Subcategory ${subcategory.name} (${subcategory.id}) total:`, subcategoryTotal)
+            if (subcategoryTotal) {
+              // Ensure main category entry exists
+              if (!aggregatedTotals[category.id]) {
+                aggregatedTotals[category.id] = {
+                  income: 0,
+                  expense: 0,
+                  type: category.type,
+                  count: 0
+                }
+                console.log(`[CATEGORIES DEBUG] Created main category ${category.name} entry for subcategory aggregation`)
+              }
+              aggregatedTotals[category.id].income += subcategoryTotal.income
+              aggregatedTotals[category.id].expense += subcategoryTotal.expense
+              aggregatedTotals[category.id].count += subcategoryTotal.count
+              console.log(`[CATEGORIES DEBUG] Added subcategory ${subcategory.name} totals to main category ${category.name}. New totals:`, aggregatedTotals[category.id])
+            }
+          })
+        }
+      })
+      
+      console.log('[CATEGORIES DEBUG] Final aggregated totals:', aggregatedTotals)
+      setCategoryTotals(aggregatedTotals)
+    } catch (error) {
+      console.error('[CATEGORIES DEBUG] Error loading category totals:', error)
+    }
+  }, [user, categories])
+
   useEffect(() => {
     if (user) {
       loadCategories()
       loadBudgetSummary()
+      loadCategoryTotals()
     }
-  }, [user, selectedPeriod, loadCategories, loadBudgetSummary])
+  }, [user, loadCategories, loadBudgetSummary, loadCategoryTotals])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!user || !name.trim()) {
-      toast.error('Please fill in all required fields')
+      toast.error('Please fill in all required fields', { duration: 1000 })
       return
     }
 
@@ -149,7 +224,7 @@ export function CategoriesPage() {
 
       budget_amount: budgetAmountNum,
       budget_period: budgetPeriod,
-      is_active: true
+      is_active: status
     }
 
     if (editingCategory) {
@@ -158,14 +233,15 @@ export function CategoriesPage() {
         type: categoryData.type,
 
         budget_amount: categoryData.budget_amount,
-        budget_period: categoryData.budget_period
+        budget_period: categoryData.budget_period,
+        is_active: categoryData.is_active
       })
       
       if (error) {
         console.error('Error updating category:', error)
-        toast.error('Failed to update category')
+        toast.error('Failed to update category', { duration: 1000 })
       } else {
-        toast.success('Category updated successfully')
+        toast.success('Category updated successfully', { duration: 1000 })
         setCategories(prev => prev.map(cat => cat.id === editingCategory.id ? data! : cat))
         handleDialogClose()
         loadBudgetSummary()
@@ -188,12 +264,12 @@ export function CategoriesPage() {
         if (error) {
           console.error('Error adding category:', error)
           if ((error as {code?: string; message?: string}).code === 'DUPLICATE_CATEGORY') {
-            toast.error((error as {message?: string}).message || 'Duplicate category')
+            toast.error((error as {message?: string}).message || 'Duplicate category', { duration: 1000 })
           } else {
-            toast.error('Failed to add category')
+            toast.error('Failed to add category', { duration: 1000 })
           }
         } else {
-          toast.success('Category added successfully')
+          toast.success('Category added successfully', { duration: 1000 })
           setCategories(prev => [data!, ...prev])
           handleDialogClose()
           loadBudgetSummary()
@@ -201,7 +277,7 @@ export function CategoriesPage() {
       } else if (dialogMode === 'add-subcategory') {
         // Create sub-category with budget under selected parent
         if (!selectedParentCategory) {
-          toast.error('Please select a parent category')
+          toast.error('Please select a parent category', { duration: 1000 })
           return
         }
         
@@ -221,13 +297,13 @@ export function CategoriesPage() {
         if (error) {
           console.error('Error adding sub-category:', error)
           if ((error as {code?: string; message?: string}).code === 'DUPLICATE_CATEGORY') {
-            toast.error((error as {message?: string}).message || 'Duplicate category')
+            toast.error((error as {message?: string}).message || 'Duplicate category', { duration: 1000 })
           } else {
-            toast.error('Failed to add sub-category')
+            toast.error('Failed to add sub-category', { duration: 1000 })
           }
         } else {
           const parentCategory = categories.find(cat => cat.id === selectedParentCategory)
-          toast.success(`Sub-category "${name.trim()}" added successfully under "${parentCategory?.name}"`)
+          toast.success(`Sub-category "${name.trim()}" added successfully under "${parentCategory?.name}"`, { duration: 1000 })
           setCategories(prev => [data!, ...prev])
           handleDialogClose()
           loadBudgetSummary()
@@ -243,6 +319,7 @@ export function CategoriesPage() {
     setType(category.type)
     setBudgetAmount(category.budget_amount.toString())
     setBudgetPeriod(category.budget_period)
+    setStatus(category.is_active)
     setIsDialogOpen(true)
   }
 
@@ -258,9 +335,9 @@ export function CategoriesPage() {
     
     if (error) {
       console.error('Error deleting category:', error)
-      toast.error('Failed to delete category')
+      toast.error('Failed to delete category', { duration: 1000 })
     } else {
-      toast.success('Category deleted successfully')
+      toast.success('Category deleted successfully', { duration: 1000 })
       setCategories(prev => prev.filter(cat => cat.id !== categoryToDelete.id))
       loadBudgetSummary()
     }
@@ -278,6 +355,7 @@ export function CategoriesPage() {
     setType('expense')
     setBudgetAmount('')
     setBudgetPeriod('monthly')
+    setStatus(true)
   }
 
   const openAddCategoryDialog = () => {
@@ -415,6 +493,19 @@ export function CategoriesPage() {
                   </>
                 )}
                 
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={status ? 'active' : 'inactive'} onValueChange={(value) => setStatus(value === 'active')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
                 <div className="flex space-x-2 pt-4">
                    <Button type="button" variant="outline" onClick={handleDialogClose} className="flex-1">
                      Cancel
@@ -474,6 +565,18 @@ export function CategoriesPage() {
           <div className="grid gap-1">
             {categories.map((category) => {
               const budgetData = budgetSummary.find(budget => budget.id === category.id)
+              const categoryTotal = categoryTotals[category.id]
+              
+              console.log(`[CATEGORIES DEBUG] Rendering category ${category.name}:`, {
+                categoryId: category.id,
+                categoryType: category.type,
+                budgetAmount: category.budget_amount,
+                categoryTotal,
+                budgetData,
+                hasTotal: !!categoryTotal,
+                hasBudget: category.budget_amount !== null && category.budget_amount !== undefined
+              })
+
               
               return (
                  <Card key={category.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleEdit(category)}>
@@ -485,7 +588,23 @@ export function CategoriesPage() {
                            <Badge variant="secondary" className="text-xs px-1 py-0">Sub</Badge>
                          )}
                        </div>
-                       {category.type === 'expense' && category.budget_amount > 0 && (
+                       
+                       {/* Show total income for income categories */}
+                       {category.type === 'income' && categoryTotal && (
+                         <div className="mt-0.5 space-y-0.5">
+                           <div className="flex justify-between text-xs">
+                             <span className="text-gray-600">Total Income</span>
+                             <span className="font-medium text-green-600">IDR {formatCurrency(categoryTotal.income)}</span>
+                           </div>
+                           <div className="flex justify-between text-xs">
+                             <span className="text-gray-600">Transactions</span>
+                             <span className="font-medium text-gray-700">{categoryTotal.count}</span>
+                           </div>
+                         </div>
+                       )}
+                       
+                       {/* Show budget info for expense categories with budget */}
+                       {category.type === 'expense' && category.budget_amount >= 0 && (
                          <div className="mt-0.5 space-y-0.5">
                            <div className="flex justify-between text-xs">
                              <span className="text-gray-600">Budget ({category.budget_period})</span>
@@ -501,6 +620,20 @@ export function CategoriesPage() {
                                </span>
                              </div>
                            )}
+                         </div>
+                       )}
+                       
+                       {/* Show total expense for expense categories without budget */}
+                       {category.type === 'expense' && category.budget_amount === null && categoryTotal && (
+                         <div className="mt-0.5 space-y-0.5">
+                           <div className="flex justify-between text-xs">
+                             <span className="text-gray-600">Total Expense</span>
+                             <span className="font-medium text-red-600">IDR {formatCurrency(categoryTotal.expense)}</span>
+                           </div>
+                           <div className="flex justify-between text-xs">
+                             <span className="text-gray-600">Transactions</span>
+                             <span className="font-medium text-gray-700">{categoryTotal.count}</span>
+                           </div>
                          </div>
                        )}
                      </div>

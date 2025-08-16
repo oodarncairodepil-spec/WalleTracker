@@ -200,17 +200,26 @@ export class TransactionService {
     }
   }
 
-  async getCategoryTotals(): Promise<Record<string, number>> {
+  async getCategoryTotals(): Promise<Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }>> {
     const transactions = await this.getTransactions()
-    const categoryTotals: Record<string, number> = {}
+    const categoryTotals: Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }> = {}
 
     transactions.forEach(transaction => {
       if (!categoryTotals[transaction.category]) {
-        categoryTotals[transaction.category] = 0
+        categoryTotals[transaction.category] = {
+          income: 0,
+          expense: 0,
+          type: transaction.type,
+          count: 0
+        }
       }
       
+      categoryTotals[transaction.category].count += 1
+      
       if (transaction.type === 'expense') {
-        categoryTotals[transaction.category] += transaction.amount
+        categoryTotals[transaction.category].expense += transaction.amount
+      } else if (transaction.type === 'income') {
+        categoryTotals[transaction.category].income += transaction.amount
       }
     })
 

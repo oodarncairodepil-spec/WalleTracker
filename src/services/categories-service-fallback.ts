@@ -9,6 +9,7 @@ export interface CategoryWithSubcategories {
   name: string
   type: 'income' | 'expense'
   emoji?: string
+  is_active: boolean
   subcategories: Category[]
 }
 
@@ -17,6 +18,7 @@ export interface CategoryItem {
   name: string
   type: 'income' | 'expense'
   emoji?: string
+  is_active: boolean
   isSubcategory: boolean
   parentId?: string
   budgetAmount?: number
@@ -65,6 +67,7 @@ class CategoriesServiceFallback {
         name: mainCat.name,
         type: mainCat.type,
         emoji: mainCat.emoji,
+        is_active: mainCat.is_active,
         subcategories: (subcategories || []).filter(sub => sub.main_category_id === mainCat.id)
       }))
 
@@ -107,6 +110,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
            name: category.name,
            type: category.type,
            emoji: category.emoji,
+           is_active: category.is_active,
            isSubcategory: false,
            parentId: undefined,
            budgetAmount: undefined,
@@ -121,6 +125,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
            name: category.name,
            type: category.type,
            emoji: category.emoji,
+           is_active: category.is_active,
            isSubcategory: true,
            parentId: category.main_category_id,
            budgetAmount: category.budget_amount,
@@ -135,14 +140,15 @@ const result: CategoryItem[] = [] as CategoryItem[]
     }
   }
 
-  async addMainCategory(userId: string, name: string, type: 'income' | 'expense') {
+  async addMainCategory(userId: string, name: string, type: 'income' | 'expense', isActive: boolean = true) {
     try {
       const { data, error } = await supabase
         .from('main_categories')
         .insert({
           user_id: userId,
           name,
-          type
+          type,
+          is_active: isActive
         })
         .select()
         .single()
@@ -160,7 +166,8 @@ const result: CategoryItem[] = [] as CategoryItem[]
     mainCategoryId: string,
     name: string,
     budgetAmount?: number,
-    budgetPeriod?: 'weekly' | 'monthly' | 'yearly'
+    budgetPeriod?: 'weekly' | 'monthly' | 'yearly',
+    isActive: boolean = true
   ) {
     try {
       const { data, error } = await supabase
@@ -170,7 +177,8 @@ const result: CategoryItem[] = [] as CategoryItem[]
           main_category_id: mainCategoryId,
           name,
           budget_amount: budgetAmount,
-          budget_period: budgetPeriod
+          budget_period: budgetPeriod,
+          is_active: isActive
         })
         .select()
         .single()
@@ -183,11 +191,16 @@ const result: CategoryItem[] = [] as CategoryItem[]
     }
   }
 
-  async updateMainCategory(id: string, name: string, type: 'income' | 'expense') {
+  async updateMainCategory(id: string, name: string, type: 'income' | 'expense', isActive?: boolean) {
     try {
+      const updateData: any = { name, type }
+      if (isActive !== undefined) {
+        updateData.is_active = isActive
+      }
+      
       const { data, error } = await supabase
         .from('main_categories')
-        .update({ name, type })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single()
@@ -204,16 +217,22 @@ const result: CategoryItem[] = [] as CategoryItem[]
     id: string,
     name: string,
     budgetAmount?: number,
-    budgetPeriod?: 'weekly' | 'monthly' | 'yearly'
+    budgetPeriod?: 'weekly' | 'monthly' | 'yearly',
+    isActive?: boolean
   ) {
     try {
+      const updateData: any = {
+        name,
+        budget_amount: budgetAmount,
+        budget_period: budgetPeriod
+      }
+      if (isActive !== undefined) {
+        updateData.is_active = isActive
+      }
+      
       const { data, error } = await supabase
         .from('subcategories')
-        .update({
-          name,
-          budget_amount: budgetAmount,
-          budget_period: budgetPeriod
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single()
@@ -256,12 +275,12 @@ const result: CategoryItem[] = [] as CategoryItem[]
 
   async getBudgetSummary(userId: string): Promise<BudgetSummary> {
     try {
-      // Get subcategories with budgets
+      // Get subcategories with budgets (including zero budgets)
       const { data: categories, error: categoriesError } = await supabase
         .from('subcategories')
         .select('*')
         .eq('user_id', userId)
-        .not('budget_amount', 'is', null)
+        .gte('budget_amount', 0)
 
       if (categoriesError) throw categoriesError
 

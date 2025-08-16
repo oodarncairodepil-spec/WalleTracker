@@ -48,7 +48,7 @@ export function FundsPage() {
       setFunds(fundsData)
     } catch (error) {
       console.error('Error loading funds:', error)
-      toast.error('Failed to load funds')
+      toast.error('Failed to load funds', { duration: 1000 })
     } finally {
       setLoading(false)
     }
@@ -58,19 +58,19 @@ export function FundsPage() {
     e.preventDefault()
     
     if (!name.trim() || !balance) {
-      toast.error('Please fill in all fields')
+      toast.error('Please fill in all fields', { duration: 1000 })
       return
     }
 
     const balanceAmount = parseInt(balance, 10)
     if (isNaN(balanceAmount) || balanceAmount < 0) {
-      toast.error('Please enter a valid balance amount')
+      toast.error('Please enter a valid balance amount', { duration: 1000 })
       return
     }
 
     // Check if balance exceeds database limit
     if (balanceAmount > 999999999999) {
-      toast.error('Balance amount cannot exceed 999,999,999,999')
+      toast.error('Balance amount cannot exceed 999,999,999,999', { duration: 1000 })
       return
     }
 
@@ -84,7 +84,7 @@ export function FundsPage() {
           status: status,
           is_default: isDefault
         })
-        toast.success('Fund updated successfully')
+        toast.success('Fund updated successfully', { duration: 1000 })
       } else {
         // Create new fund
         await fundsService.createFund({
@@ -94,7 +94,7 @@ export function FundsPage() {
           status: status,
           is_default: isDefault
         })
-        toast.success('Fund created successfully')
+        toast.success('Fund created successfully', { duration: 1000 })
       }
       
       // Reset form and close dialog
@@ -110,7 +110,7 @@ export function FundsPage() {
       await loadFunds()
     } catch (error) {
       console.error('Error saving fund:', error)
-      toast.error('Failed to save fund')
+      toast.error('Failed to save fund', { duration: 1000 })
     }
   }
 
@@ -131,11 +131,11 @@ export function FundsPage() {
 
     try {
       await fundsService.deleteFund(fundToDelete.id)
-      toast.success('Fund deleted successfully')
+      toast.success('Fund deleted successfully', { duration: 1000 })
       await loadFunds()
     } catch (error) {
       console.error('Error deleting fund:', error)
-      toast.error('Failed to delete fund')
+      toast.error('Failed to delete fund', { duration: 1000 })
     }
     setIsDeleteDialogOpen(false)
     setFundToDelete(null)
@@ -241,15 +241,10 @@ export function FundsPage() {
                   id="balance"
                   type="text"
                   placeholder="0"
-                  value={balance}
+                  value={balance ? Number(balance).toLocaleString('id-ID') : ''}
                   onChange={(e) => {
-                    setBalance(e.target.value);
-                  }}
-                  onBlur={(e) => {
                     const value = e.target.value.replace(/[^0-9]/g, '');
-                    if (!isNaN(Number(value)) || value === '') {
-                      setBalance(value);
-                    }
+                    setBalance(value);
                   }}
                   required
                 />

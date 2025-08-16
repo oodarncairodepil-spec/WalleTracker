@@ -74,9 +74,9 @@ export async function migrateLocalDataToSupabase(): Promise<{ success: boolean; 
   // If migration was successful, clear local storage
   if (success) {
     clearLocalStorage()
-    toast.success(`Successfully migrated ${migratedCount} transactions to your account!`)
+    toast.success(`Successfully migrated ${migratedCount} transactions to your account!`, { duration: 1000 })
   } else {
-    toast.error(`Migration completed with ${errors.length} errors. ${migratedCount} transactions were migrated successfully.`)
+    toast.error(`Migration completed with ${errors.length} errors. ${migratedCount} transactions were migrated successfully.`, { duration: 1000 })
   }
 
   return { success, migratedCount, errors }

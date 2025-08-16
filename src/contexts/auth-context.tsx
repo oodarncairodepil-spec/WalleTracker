@@ -16,15 +16,28 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  console.log('[AUTH DEBUG] AuthProvider component rendered')
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  console.log('[AUTH DEBUG] AuthProvider state initialized - user:', user, 'loading:', loading)
+
+  // Test if useEffect runs at all
+  useEffect(() => {
+    console.log('[AUTH DEBUG] ===== SIMPLE useEffect TEST =====')  
+  }, [])
 
   useEffect(() => {
+    console.log('[AUTH DEBUG] ===== useEffect STARTED =====', { loading, timestamp: new Date().toISOString() })
     console.log('[AUTH DEBUG] AuthProvider useEffect started, loading:', loading)
     
+    console.log('[AUTH DEBUG] About to call authService.getCurrentUser()')
     // Get initial user
     authService.getCurrentUser().then((user) => {
+      console.log('[AUTH DEBUG] authService.getCurrentUser() promise resolved')
       console.log('[AUTH DEBUG] getCurrentUser resolved with user:', user ? 'USER_FOUND' : 'NO_USER')
+      if (user) {
+        console.log('[AUTH DEBUG] User details:', { id: user.id, email: user.email, created_at: user.created_at })
+      }
       setUser(user)
       setLoading(false)
       console.log('[AUTH DEBUG] Auth state updated - user:', user ? 'SET' : 'NULL', 'loading: false')
@@ -45,6 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = authService.onAuthStateChange((user) => {
       console.log('[AUTH DEBUG] Auth state change detected, user:', user ? 'USER_FOUND' : 'NO_USER')
+      if (user) {
+        console.log('[AUTH DEBUG] User details from listener:', { id: user.id, email: user.email })
+      }
       setUser(user)
       setLoading(false)
       console.log('[AUTH DEBUG] Auth state updated from listener - user:', user ? 'SET' : 'NULL', 'loading: false')
@@ -61,10 +77,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       const { error } = await authService.signIn(email, password)
       if (error) {
-        toast.error(error.message)
+        toast.error(error.message, { duration: 1000 })
         throw error
       }
-      toast.success('Signed in successfully!')
+      toast.success('Signed in successfully!', { duration: 1000 })
     } catch (error) {
       throw error
     } finally {
@@ -77,10 +93,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       const { error } = await authService.signUp(email, password, fullName)
       if (error) {
-        toast.error(error.message)
+        toast.error(error.message, { duration: 1000 })
         throw error
       }
-      toast.success('Account created successfully! Please check your email to verify your account.')
+      toast.success('Account created successfully! Please check your email to verify your account.', { duration: 1000 })
     } catch (error) {
       throw error
     } finally {
@@ -96,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Check if user is already signed out
       if (!user) {
-        toast.success('Already signed out!')
+        toast.success('Already signed out!', { duration: 1000 })
         return
       }
       
@@ -108,15 +124,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             error.message.includes('AuthSessionMissingError') ||
             error.message.includes('403') ||
             error.message.includes('Forbidden')) {
-          toast.success('Signed out successfully!')
+          toast.success('Signed out successfully!', { duration: 1000 })
           // Clear user state immediately to prevent blinking
           setUser(null)
           return
         }
-        toast.error(error.message)
+        toast.error(error.message, { duration: 1000 })
         throw error
       }
-      toast.success('Signed out successfully!')
+      toast.success('Signed out successfully!', { duration: 1000 })
       // Clear user state immediately
       setUser(null)
     } catch (error: unknown) {
@@ -127,13 +143,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           errorMessage.includes('AuthSessionMissingError') ||
           errorMessage.includes('403') ||
           errorMessage.includes('Forbidden')) {
-        toast.success('Signed out successfully!')
+        toast.success('Signed out successfully!', { duration: 1000 })
         // Clear user state immediately to prevent blinking
         setUser(null)
         return
       }
       console.error('Sign out error:', error)
-      toast.error('Failed to sign out. Please try again.')
+      toast.error('Failed to sign out. Please try again.', { duration: 1000 })
     } finally {
       setLoading(false)
     }

@@ -43,6 +43,7 @@ export function CategoriesPageV2() {
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
   const [budgetPeriod, setBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly')
+  const [status, setStatus] = useState<boolean>(true) // true = active, false = inactive
   const [editingItem, setEditingItem] = useState<CategoryItem | CategoryWithSubcategories | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -57,7 +58,7 @@ export function CategoriesPageV2() {
       setCategories(data || [])
     } catch (error) {
       console.error('Error loading categories:', error)
-      toast.error('Failed to load categories')
+      toast.error('Failed to load categories', { duration: 1000 })
       setCategories([])
     }
     
@@ -90,11 +91,11 @@ export function CategoriesPageV2() {
 
     try {
       if (dialogMode === 'add-main') {
-        await categoriesServiceFallback.addMainCategory(user.id, name.trim(), type)
-        toast.success('Main category added successfully')
+        await categoriesServiceFallback.addMainCategory(user.id, name.trim(), type, status)
+        toast.success('Main category added successfully', { duration: 1000 })
       } else if (dialogMode === 'add-sub') {
         if (!selectedMainCategoryId) {
-          toast.error('Please select a main category')
+          toast.error('Please select a main category', { duration: 1000 })
           return
         }
         await categoriesServiceFallback.addSubcategory(
@@ -102,20 +103,22 @@ export function CategoriesPageV2() {
           selectedMainCategoryId,
           name.trim(),
           budgetAmountNum,
-          budgetPeriod
+          budgetPeriod,
+          status
         )
-        toast.success('Subcategory added successfully')
+        toast.success('Subcategory added successfully', { duration: 1000 })
       } else if (dialogMode === 'edit-main' && editingItem) {
-        await categoriesServiceFallback.updateMainCategory(editingItem.id, name.trim(), type)
-        toast.success('Main category updated successfully')
+        await categoriesServiceFallback.updateMainCategory(editingItem.id, name.trim(), type, status)
+        toast.success('Main category updated successfully', { duration: 1000 })
       } else if (dialogMode === 'edit-sub' && editingItem) {
         await categoriesServiceFallback.updateSubcategory(
           editingItem.id,
           name.trim(),
           budgetAmountNum,
-          budgetPeriod
+          budgetPeriod,
+          status
         )
-        toast.success('Subcategory updated successfully')
+        toast.success('Subcategory updated successfully', { duration: 1000 })
       }
       
       loadCategories()
@@ -123,7 +126,7 @@ export function CategoriesPageV2() {
       handleDialogClose()
     } catch (error) {
       console.error('Error:', error)
-      toast.error('Failed to save category')
+      toast.error('Failed to save category', { duration: 1000 })
     }
   }
 
@@ -133,6 +136,7 @@ export function CategoriesPageV2() {
     setType(item.type || 'expense')
     setBudgetAmount('budgetAmount' in item ? item.budgetAmount?.toString() || '' : '')
     setBudgetPeriod('budgetPeriod' in item ? item.budgetPeriod || 'monthly' : 'monthly')
+    setStatus(item.is_active !== undefined ? item.is_active : true)
     setDialogMode(isSubcategory ? 'edit-sub' : 'edit-main')
     setDialogOpen(true)
   }
@@ -148,10 +152,10 @@ export function CategoriesPageV2() {
     try {
       if (itemToDelete.isSubcategory) {
         await categoriesServiceFallback.deleteSubcategory(itemToDelete.item.id)
-        toast.success('Subcategory deleted successfully')
+        toast.success('Subcategory deleted successfully', { duration: 1000 })
       } else {
         await categoriesServiceFallback.deleteMainCategory(itemToDelete.item.id)
-        toast.success('Main category deleted successfully')
+        toast.success('Main category deleted successfully', { duration: 1000 })
       }
       
       loadCategories()
@@ -161,7 +165,7 @@ export function CategoriesPageV2() {
       setItemToDelete(null)
     } catch (error) {
       console.error('Error deleting:', error)
-      toast.error('Failed to delete category')
+      toast.error('Failed to delete category', { duration: 1000 })
     }
   }
 
@@ -172,6 +176,7 @@ export function CategoriesPageV2() {
     setSelectedMainCategoryId('')
     setBudgetAmount('')
     setBudgetPeriod('monthly')
+    setStatus(true)
     setEditingItem(null)
   }
 
@@ -264,9 +269,12 @@ export function CategoriesPageV2() {
                     <Label htmlFor="budgetAmount">Budget Amount</Label>
                     <Input
                       id="budgetAmount"
-                      type="number"
-                      value={budgetAmount}
-                      onChange={(e) => setBudgetAmount(e.target.value)}
+                      type="text"
+                      value={budgetAmount ? Number(budgetAmount.replace(/[^0-9]/g, '')).toLocaleString('id-ID') : ''}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        setBudgetAmount(value);
+                      }}
                       placeholder="0"
                     />
                   </div>
@@ -286,6 +294,19 @@ export function CategoriesPageV2() {
                   </div>
                 </>
               )}
+              
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select value={status ? 'active' : 'inactive'} onValueChange={(value) => setStatus(value === 'active')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               
               <div className="flex justify-between">
                 <div>
@@ -426,9 +447,9 @@ export function CategoriesPageV2() {
                           {category.type}
                         </Badge>
                       </CardTitle>
-                      {totalBudget > 0 && (
+                      {totalBudget >= 0 && (
                         <div className="text-sm ml-7 text-black">
-                          <span className={totalLeftover > 0 ? 'text-green-600' : 'text-black'}>Rp {totalLeftover.toLocaleString('id-ID').replace(/,/g, '.')}</span> left from Rp {totalBudget.toLocaleString('id-ID').replace(/,/g, '.')}
+                          <span className={totalLeftover > 0 ? 'text-green-600' : 'text-red-600'}>Rp {totalLeftover.toLocaleString('id-ID').replace(/,/g, '.')}</span> left from Rp {totalBudget.toLocaleString('id-ID').replace(/,/g, '.')}
                         </div>
                       )}
                     </div>
@@ -447,9 +468,9 @@ export function CategoriesPageV2() {
                           <div key={subcategory.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleEdit(subcategory as unknown as CategoryItem, true); }}>
                             <div className="flex flex-col gap-1">
                               <span className="font-medium">{subcategory.name}</span>
-                              {budgetAmount > 0 && (
+                              {budgetAmount >= 0 && (
                                 <div className="text-sm text-black">
-                                  <span className={leftover > 0 ? 'text-green-600' : 'text-black'}>Rp {leftover.toLocaleString('id-ID').replace(/,/g, '.')}</span> left from Rp {budgetAmount.toLocaleString('id-ID').replace(/,/g, '.')}
+                                  <span className={leftover > 0 ? 'text-green-600' : 'text-red-600'}>Rp {leftover.toLocaleString('id-ID').replace(/,/g, '.')}</span> left from Rp {budgetAmount.toLocaleString('id-ID').replace(/,/g, '.')}
                                 </div>
                               )}
                             </div>

@@ -91,7 +91,7 @@ export function ExpenseTracker() {
       const { data, error } = await transactionService.getTransactions();
       if (error) {
         console.error('Error loading transactions:', error);
-        toast.error('Failed to load transactions');
+        toast.error('Failed to load transactions', { duration: 1000 });
         // Fallback to localStorage
         const saved = localStorage.getItem('walletracker-transactions');
         if (saved) {
@@ -102,7 +102,7 @@ export function ExpenseTracker() {
       }
     } catch (error) {
       console.error('Error loading transactions:', error instanceof Error ? error.message : String(error));
-      toast.error('Failed to load transactions');
+      toast.error('Failed to load transactions', { duration: 1000 });
     } finally {
       setLoading(false);
     }
@@ -172,13 +172,13 @@ export function ExpenseTracker() {
 
   const addTransaction = async () => {
     if (!description.trim() || !amount || !category) {
-      toast.error('Please fill in all fields');
+      toast.error('Please fill in all fields', { duration: 1000 });
       return;
     }
 
     const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10);
     if (isNaN(numAmount) || numAmount <= 0) {
-      toast.error('Please enter a valid amount');
+      toast.error('Please enter a valid amount', { duration: 1000 });
       return;
     }
 
@@ -196,7 +196,7 @@ export function ExpenseTracker() {
         const { data, error } = await transactionService.addTransaction(transactionData);
         if (error) {
           console.error('Error adding transaction:', error);
-          toast.error('Failed to add transaction');
+          toast.error('Failed to add transaction', { duration: 1000 });
           return;
         }
         if (data) {
@@ -204,7 +204,7 @@ export function ExpenseTracker() {
         }
       } catch (error) {
         console.error('Error adding transaction:', error instanceof Error ? error.message : String(error));
-        toast.error('Failed to add transaction');
+        toast.error('Failed to add transaction', { duration: 1000 });
         return;
       }
     } else {
@@ -220,7 +220,7 @@ export function ExpenseTracker() {
     setAmount('');
     setCategory('');
     setIsDialogOpen(false);
-    toast.success('Transaction added successfully!');
+    toast.success('Transaction added successfully!', { duration: 1000 });
   };
 
   const deleteTransaction = async (id: string) => {
@@ -229,27 +229,27 @@ export function ExpenseTracker() {
         const { error } = await transactionService.deleteTransaction(id);
         if (error) {
           console.error('Error deleting transaction:', error);
-          toast.error('Failed to delete transaction');
+          toast.error('Failed to delete transaction', { duration: 1000 });
           return;
         }
       } catch (error) {
         console.error('Error deleting transaction:', error instanceof Error ? error.message : String(error));
-        toast.error('Failed to delete transaction');
+        toast.error('Failed to delete transaction', { duration: 1000 });
         return;
       }
     }
     
     setTransactions(prev => prev.filter(t => t.id !== id));
-    toast.success('Transaction deleted');
+    toast.success('Transaction deleted', { duration: 1000 });
   };
 
   const clearAllTransactions = () => {
     if (transactions.length === 0) {
-      toast.info('No transactions to clear');
+      toast.info('No transactions to clear', { duration: 1000 });
       return;
     }
     setTransactions([]);
-    toast.success('All transactions cleared');
+    toast.success('All transactions cleared', { duration: 1000 });
   };
 
   const filteredTransactions = transactions.filter(transaction => {
@@ -376,14 +376,10 @@ export function ExpenseTracker() {
                 id="amount"
                 type="text"
                 placeholder="Enter amount"
-                value={amount}
+                value={amount ? Number(amount.replace(/[^0-9]/g, '')).toLocaleString('id-ID') : ''}
                 onChange={(e) => {
-                  setAmount(e.target.value)
-                }}
-                onBlur={(e) => {
-                  const value = e.target.value.replace(/[^0-9]/g, '')
-                  const formatted = value ? parseInt(value).toLocaleString('id-ID') : ''
-                  setAmount(formatted)
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setAmount(value);
                 }}
               />
             </div>

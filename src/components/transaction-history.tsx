@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { Input } from './ui/input'
@@ -68,10 +68,24 @@ export function TransactionHistory() {
   
   // Filter state
   const [filterCategory, setFilterCategory] = useState('all')
+  const [filterSubcategory, setFilterSubcategory] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [filterSourceOfFunds, setFilterSourceOfFunds] = useState('all')
+  const [filterDateStart, setFilterDateStart] = useState('')
+  const [filterDateEnd, setFilterDateEnd] = useState('')
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
   
+  // Reset subcategory filter when main category filter changes
+  useEffect(() => {
+    if (filterCategory !== 'all') {
+      // Check if current subcategory belongs to the selected main category
+      const currentSubcategory = allSubcategories.find(sub => sub.id === filterSubcategory)
+      if (currentSubcategory && currentSubcategory.main_category_id !== filterCategory) {
+        setFilterSubcategory('all')
+      }
+    }
+  }, [filterCategory, allSubcategories, filterSubcategory])
 
   
   // Delete confirmation dialog state
@@ -104,7 +118,7 @@ export function TransactionHistory() {
       }
     } catch (error) {
       console.error('Error loading data:', error instanceof Error ? error.message : String(error))
-      toast.error('Failed to load data')
+      toast.error('Failed to load data', { duration: 1000 })
     } finally {
       setLoading(false)
     }
@@ -219,13 +233,13 @@ export function TransactionHistory() {
     e.preventDefault()
     
     if (!amount || !category) {
-      toast.error('Please fill in all required fields')
+      toast.error('Please fill in all required fields', { duration: 1000 })
       return
     }
 
     const amountValue = parseInt(amount.replace(/[^0-9]/g, ''), 10)
     if (isNaN(amountValue) || amountValue <= 0) {
-      toast.error('Please enter a valid amount')
+      toast.error('Please enter a valid amount', { duration: 1000 })
       return
     }
 
@@ -245,10 +259,10 @@ export function TransactionHistory() {
 
       if (editingTransaction) {
         await transactionService.updateTransaction(editingTransaction.id, transactionData)
-        toast.success('Transaction updated successfully')
+        toast.success('Transaction updated successfully', { duration: 1000 })
       } else {
         await transactionService.createTransaction(transactionData)
-        toast.success('Transaction added successfully')
+        toast.success('Transaction added successfully', { duration: 1000 })
       }
       
       // Reset form and close dialog
@@ -259,7 +273,7 @@ export function TransactionHistory() {
       await loadData()
     } catch (error) {
       console.error('Error saving transaction:', error instanceof Error ? error.message : String(error))
-      toast.error('Failed to save transaction')
+      toast.error('Failed to save transaction', { duration: 1000 })
     }
   }
 
@@ -294,7 +308,7 @@ export function TransactionHistory() {
       const result = await transactionService.deleteTransaction(transactionToDelete.id)
       console.log('Delete service response:', result)
       
-      toast.success('Transaction deleted successfully')
+      toast.success('Transaction deleted successfully', { duration: 1000 })
       console.log('Reloading data...')
       await loadData()
       console.log('Data reloaded successfully')
@@ -308,7 +322,7 @@ export function TransactionHistory() {
         stack: error instanceof Error ? error.stack : undefined,
         name: error instanceof Error ? error.name : 'Unknown'
       })
-      toast.error('Failed to delete transaction')
+      toast.error('Failed to delete transaction', { duration: 1000 })
     }
   }
   
@@ -356,12 +370,6 @@ export function TransactionHistory() {
     const day = date.getDate()
     const month = date.toLocaleDateString('en-US', { month: 'short' })
     const year = date.getFullYear()
-    const time = date.toLocaleTimeString('en-US', { 
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    })
     
     // Add ordinal suffix to day
     const getOrdinalSuffix = (day: number) => {
@@ -374,15 +382,116 @@ export function TransactionHistory() {
       }
     }
     
-    return `${day}${getOrdinalSuffix(day)} ${month} ${year} ${time}`
+    return `${day}${getOrdinalSuffix(day)} ${month} ${year}`
   }
 
-  const filteredTransactions = transactions.filter(transaction => {
-    if (filterCategory !== 'all' && transaction.category !== filterCategory) return false
-    if (filterType !== 'all' && transaction.type !== filterType) return false
-    if (filterStatus !== 'all' && transaction.status !== filterStatus) return false
-    return true
-  })
+  const filteredTransactions = useMemo(() => {
+    console.log('=== FILTER DEBUG START ===')
+    console.log('Filter states:', {
+      filterCategory,
+      filterSubcategory,
+      filterType,
+      filterStatus,
+      filterSourceOfFunds,
+      filterDateStart,
+      filterDateEnd
+    })
+    console.log('Total transactions:', transactions.length)
+    console.log('Available categories:', categories.map(c => ({ id: c.id, name: c.name })))
+    console.log('Available subcategories:', allSubcategories.map(s => ({ id: s.id, name: s.name, main_category_id: s.main_category_id })))
+    console.log('Available funds:', funds.map(f => ({ id: f.id, name: f.name })))
+    
+    const filtered = transactions.filter(transaction => {
+      console.log(`\n--- Checking transaction ${transaction.id} ---`)
+      console.log('Transaction data:', {
+        id: transaction.id,
+        category: transaction.category,
+        type: transaction.type,
+        status: transaction.status,
+        source_of_funds_id: transaction.source_of_funds_id,
+        date: transaction.date,
+        amount: transaction.amount
+      })
+      
+      // Category/Subcategory filtering logic
+      if (filterCategory !== 'all' || filterSubcategory !== 'all') {
+        console.log('Checking category/subcategory filters...')
+        if (filterSubcategory !== 'all') {
+          console.log(`Subcategory filter: ${filterSubcategory}, transaction category: ${transaction.category}`)
+          // If subcategory is selected, filter by subcategory only
+          if (transaction.category !== filterSubcategory) {
+            console.log('❌ Failed subcategory filter')
+            return false
+          }
+          console.log('✅ Passed subcategory filter')
+        } else if (filterCategory !== 'all') {
+          console.log(`Main category filter: ${filterCategory}, transaction category: ${transaction.category}`)
+          // If only main category is selected, check if transaction category is either:
+          // 1. The main category itself, or
+          // 2. A subcategory of the main category
+          const isMainCategory = transaction.category === filterCategory
+          const matchingSubcategory = allSubcategories.find(sub => sub.id === transaction.category)
+          const isSubcategoryOfMain = matchingSubcategory && matchingSubcategory.main_category_id === filterCategory
+          
+          console.log('Category check results:', {
+            isMainCategory,
+            matchingSubcategory: matchingSubcategory ? { id: matchingSubcategory.id, name: matchingSubcategory.name, main_category_id: matchingSubcategory.main_category_id } : null,
+            isSubcategoryOfMain
+          })
+          
+          if (!isMainCategory && !isSubcategoryOfMain) {
+            console.log('❌ Failed main category filter')
+            return false
+          }
+          console.log('✅ Passed main category filter')
+        }
+      }
+      
+      if (filterType !== 'all' && transaction.type !== filterType) {
+        console.log(`❌ Failed type filter: ${filterType} vs ${transaction.type}`)
+        return false
+      }
+      console.log('✅ Passed type filter')
+      
+      if (filterStatus !== 'all' && transaction.status !== filterStatus) {
+        console.log(`❌ Failed status filter: ${filterStatus} vs ${transaction.status}`)
+        return false
+      }
+      console.log('✅ Passed status filter')
+      
+      if (filterSourceOfFunds !== 'all' && transaction.source_of_funds_id !== filterSourceOfFunds) {
+        console.log(`❌ Failed source of funds filter: ${filterSourceOfFunds} vs ${transaction.source_of_funds_id}`)
+        return false
+      }
+      console.log('✅ Passed source of funds filter')
+      
+      // Date range filtering
+      if (filterDateStart && transaction.date < filterDateStart) {
+        console.log(`❌ Failed start date filter: ${transaction.date} < ${filterDateStart}`)
+        return false
+      }
+      if (filterDateEnd && transaction.date > filterDateEnd) {
+        console.log(`❌ Failed end date filter: ${transaction.date} > ${filterDateEnd}`)
+        return false
+      }
+      console.log('✅ Passed date range filter')
+      
+      console.log('✅ Transaction passed all filters')
+      return true
+    })
+    
+    console.log(`\n=== FILTER RESULTS ===`)
+    console.log(`Filtered transactions: ${filtered.length}/${transactions.length}`)
+    console.log('Filtered transaction IDs:', filtered.map(t => t.id))
+    console.log('=== FILTER DEBUG END ===\n')
+    
+    return filtered.sort((a, b) => {
+      // Sort by date in descending order (most recent first)
+      const dateA = new Date(a.date)
+      const dateB = new Date(b.date)
+      return dateB.getTime() - dateA.getTime()
+    })
+  }, [transactions, filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, categories, subcategories, funds])
 
   // Helper function to get category name by ID (checks both main categories and subcategories)
   const getCategoryName = (categoryId: string) => {
@@ -402,7 +511,29 @@ export function TransactionHistory() {
     return categoryId
   }
 
-  const allCategories = [...new Set(transactions.map(t => t.category))]
+  // Get all available categories (both main categories and subcategories)
+  const allCategories = useMemo(() => {
+    const categoryIds = new Set<string>()
+    
+    // Add all main categories
+    categories.forEach((cat: MainCategory) => categoryIds.add(cat.id))
+    
+    // Add all subcategories
+    subcategories.forEach((subcat: Subcategory) => categoryIds.add(subcat.id))
+    
+    return Array.from(categoryIds)
+  }, [categories, subcategories])
+
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    return filterCategory !== 'all' || 
+           filterSubcategory !== 'all' || 
+           filterType !== 'all' || 
+           filterStatus !== 'all' || 
+           filterSourceOfFunds !== 'all' || 
+           filterDateStart !== '' || 
+           filterDateEnd !== ''
+  }, [filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd])
 
   if (loading || authLoading) {
     return (
@@ -430,9 +561,12 @@ export function TransactionHistory() {
         <div className="flex justify-between items-center gap-4">
           <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className={hasActiveFilters ? "bg-blue-50 border-blue-200 text-blue-700" : ""}>
                 <Filter className="w-4 h-4 mr-2" />
                 Filter
+                {hasActiveFilters && (
+                  <span className="ml-2 bg-blue-500 text-white text-xs rounded-full w-2 h-2"></span>
+                )}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -476,6 +610,66 @@ export function TransactionHistory() {
                 </div>
                 
                 <div className="space-y-2">
+                  <Label>Subcategory</Label>
+                  <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Subcategories</SelectItem>
+                      {allSubcategories
+                        .filter(subcat => filterCategory === 'all' || subcat.main_category_id === filterCategory)
+                        .map((subcat) => (
+                          <SelectItem key={subcat.id} value={subcat.id}>
+                            {subcat.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Source of Funds</Label>
+                  <Select value={filterSourceOfFunds} onValueChange={setFilterSourceOfFunds}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      {funds.map((fund) => (
+                        <SelectItem key={fund.id} value={fund.id}>
+                          {fund.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Date Range</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="filter-date-start" className="text-xs">From</Label>
+                      <Input
+                        id="filter-date-start"
+                        type="date"
+                        value={filterDateStart}
+                        onChange={(e) => setFilterDateStart(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="filter-date-end" className="text-xs">To</Label>
+                      <Input
+                        id="filter-date-end"
+                        type="date"
+                        value={filterDateEnd}
+                        onChange={(e) => setFilterDateEnd(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
                     <SelectTrigger>
@@ -496,7 +690,11 @@ export function TransactionHistory() {
                     onClick={() => {
                       setFilterType('all')
                       setFilterCategory('all')
+                      setFilterSubcategory('all')
                       setFilterStatus('all')
+                      setFilterSourceOfFunds('all')
+                      setFilterDateStart('')
+                      setFilterDateEnd('')
                     }}
                     className="flex-1"
                   >
@@ -538,14 +736,10 @@ export function TransactionHistory() {
                   id="amount"
                   type="text"
                   placeholder="Enter amount"
-                  value={amount}
+                  value={amount ? Number(amount.replace(/[^0-9]/g, '')).toLocaleString('id-ID') : ''}
                   onChange={(e) => {
-                    setAmount(e.target.value)
-                  }}
-                  onBlur={(e) => {
-                    const value = e.target.value.replace(/[^0-9]/g, '')
-                    const formatted = value ? parseInt(value).toLocaleString('id-ID') : ''
-                    setAmount(formatted)
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    setAmount(value);
                   }}
                   required
                 />
@@ -622,7 +816,7 @@ export function TransactionHistory() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No funding source</SelectItem>
-                    {funds.map((fund) => (
+                    {funds.filter(fund => fund.status === 'Active').map((fund) => (
                       <SelectItem key={fund.id} value={fund.id}>
                         {fund.name}
                       </SelectItem>
@@ -700,10 +894,12 @@ export function TransactionHistory() {
                   : "Try adjusting your filters"
                 }
               </p>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Transaction
-              </Button>
+              {transactions.length === 0 && (
+                <Button onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Transaction
+                </Button>
+              )}
             </div>
           ) : (
             <>
@@ -729,7 +925,7 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {formatDate(transaction.created_at || transaction.date)}
+                          {formatDate(transaction.date)}
                         </div>
                       </div>
                     </div>
@@ -759,7 +955,7 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {formatDate(transaction.created_at || transaction.date)}
+                          {formatDate(transaction.date)}
                         </div>
                       </div>
                     </div>
