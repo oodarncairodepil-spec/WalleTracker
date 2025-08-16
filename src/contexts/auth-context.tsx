@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Test if useEffect runs at all
   useEffect(() => {
     console.log('[AUTH DEBUG] ===== SIMPLE useEffect TEST =====')  
-  }, [])
+  }, [loading])
 
   useEffect(() => {
     console.log('[AUTH DEBUG] ===== useEffect STARTED =====', { loading, timestamp: new Date().toISOString() })
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[AUTH DEBUG] AuthProvider cleanup - unsubscribing')
       subscription.unsubscribe()
     }
-  }, [])
+  }, [loading])
 
   const signIn = async (email: string, password: string) => {
     try {

@@ -193,7 +193,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
 
   async updateMainCategory(id: string, name: string, type: 'income' | 'expense', isActive?: boolean) {
     try {
-      const updateData: any = { name, type }
+      const updateData: { name: string; type: 'income' | 'expense'; is_active?: boolean } = { name, type }
       if (isActive !== undefined) {
         updateData.is_active = isActive
       }
@@ -221,7 +221,12 @@ const result: CategoryItem[] = [] as CategoryItem[]
     isActive?: boolean
   ) {
     try {
-      const updateData: any = {
+      const updateData: {
+        name: string;
+        budget_amount?: number;
+        budget_period?: 'weekly' | 'monthly' | 'yearly';
+        is_active?: boolean;
+      } = {
         name,
         budget_amount: budgetAmount,
         budget_period: budgetPeriod

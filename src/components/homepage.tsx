@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { Wallet, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
-import { categoriesServiceV2, type MainCategory, type Subcategory, type CategoryWithSubcategories } from '../services/categories-service-v2'
+import { categoriesServiceV2, type MainCategory, type Subcategory } from '../services/categories-service-v2'
 import { categoriesServiceFallback } from '../services/categories-service-fallback'
 import type { Transaction, Fund } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
@@ -37,7 +38,7 @@ export function Homepage() {
   const [unpaidExpenses, setUnpaidExpenses] = useState<Transaction[]>([])
   const [unpaidTotal, setUnpaidTotal] = useState(0)
   const [showUnpaidList, setShowUnpaidList] = useState(false)
-  const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([])
+
   const [groupedCategoryBudgets, setGroupedCategoryBudgets] = useState<GroupedCategoryBudget[]>([])
   const [showCategoryDetails, setShowCategoryDetails] = useState(false)
   const [categories, setCategories] = useState<MainCategory[]>([])
@@ -103,7 +104,6 @@ export function Homepage() {
           remaining: category.remaining
         }))
         console.log('[HOMEPAGE DEBUG] Category budgets loaded from database:', budgets.length, 'items')
-        setCategoryBudgets(budgets)
         
         // Create grouped budget structure
         if (categoriesWithSubsResult.data) {
@@ -139,7 +139,6 @@ export function Homepage() {
       } catch (error) {
         console.error('[HOMEPAGE DEBUG] Error loading budget data from database:', error)
         // Fallback to empty array if database fails
-        setCategoryBudgets([])
         setGroupedCategoryBudgets([])
       }
     } catch (error) {
@@ -253,12 +252,10 @@ export function Homepage() {
                      <div className="flex items-center justify-between">
                        <div className="flex items-center space-x-2">
                          {fund.image_url ? (
-                           <img 
+                           <Image 
                              alt={fund.name} 
-                             loading="lazy" 
-                             width="24" 
-                             height="24" 
-                             decoding="async" 
+                             width={24} 
+                             height={24} 
                              className="w-6 h-6 rounded-md object-cover" 
                              src={fund.image_url}
                            />

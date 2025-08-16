@@ -122,7 +122,7 @@ export function TransactionHistory() {
     } finally {
       setLoading(false)
     }
-  }, [sourceOfFundsId, user])
+  }, [sourceOfFundsId, user]) // loadCategories and loadAllSubcategories are stable (useCallback with [user])
 
   useEffect(() => {
     if (user) {
@@ -332,14 +332,16 @@ export function TransactionHistory() {
     setTransactionToDelete(null)
   }
 
-  const resetForm = async () => {
+  const resetForm = async (isNewTransaction = true) => {
     setEditingTransaction(null)
     setAmount('')
     setCategory('')
     setSubcategory('')
     setSubcategories([])
     setType('expense')
-    setDate(new Date().toISOString().split('T')[0])
+    if (isNewTransaction) {
+      setDate(new Date().toISOString().split('T')[0])
+    }
     setStatus('paid')
     setNote('')
     
@@ -354,7 +356,7 @@ export function TransactionHistory() {
 
   const handleDialogClose = async () => {
     setIsDialogOpen(false)
-    await resetForm()
+    await resetForm(true) // Always reset for new transactions when dialog closes
   }
 
 
@@ -491,7 +493,7 @@ export function TransactionHistory() {
       const dateB = new Date(b.date)
       return dateB.getTime() - dateA.getTime()
     })
-  }, [transactions, filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, categories, subcategories, funds])
+  }, [transactions, filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, categories, subcategories, funds, allSubcategories])
 
   // Helper function to get category name by ID (checks both main categories and subcategories)
   const getCategoryName = (categoryId: string) => {
@@ -714,7 +716,7 @@ export function TransactionHistory() {
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={resetForm}>
+              <Button onClick={() => resetForm()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add
               </Button>

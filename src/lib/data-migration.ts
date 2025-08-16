@@ -55,7 +55,7 @@ export async function migrateLocalDataToSupabase(): Promise<{ success: boolean; 
   for (const transaction of localTransactions) {
     try {
       // Remove local-only fields and prepare for Supabase
-      const { created_at: _created_at, updated_at: _updated_at, user_id: _user_id, ...cleanTransaction } = transaction
+      const { created_at, updated_at, user_id, ...cleanTransaction } = transaction
       
       const { error } = await transactionService.addTransaction(cleanTransaction)
       

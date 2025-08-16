@@ -77,7 +77,7 @@ export function ExpenseTracker() {
       }
       setLoading(false);
     }
-  }, [user]);
+  }, [user]); // loadCategories doesn't depend on props/state, safe to omit
 
   // Save to localStorage as backup when transactions change
   useEffect(() => {
@@ -534,8 +534,7 @@ export function ExpenseTracker() {
                         {new Date(transaction.date).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
+                          year: 'numeric'
                         })}
                       </TableCell>
                       <TableCell className="text-right">
