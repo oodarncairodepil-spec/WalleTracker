@@ -89,7 +89,7 @@ export default function DebugCategoriesPage() {
     nameGroups[key].push(cat)
   })
   
-  const duplicates = Object.entries(nameGroups).filter(([key, cats]) => cats.length > 1)
+  const duplicates = Object.entries(nameGroups).filter(([, cats]) => cats.length > 1)
   
   // Transport-related categories
   const transportCategories = categories.filter(cat => 
@@ -189,7 +189,7 @@ export default function DebugCategoriesPage() {
               const [name, type] = key.split('_')
               return (
                 <div key={key} className="mb-4">
-                  <h3 className="font-medium text-red-800">Duplicate: "{name}" ({type})</h3>
+                  <h3 className="font-medium text-red-800">Duplicate: &quot;{name}&quot; ({type})</h3>
                   <ul className="ml-4 mt-1 space-y-1">
                     {cats.map(cat => {
                       const categoryType = cat.parent_id ? 'Sub-category' : 'Main category'

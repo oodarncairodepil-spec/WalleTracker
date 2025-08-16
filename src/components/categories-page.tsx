@@ -2,20 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Card, CardContent } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Badge } from './ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table'
+
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Target, ChevronDown } from 'lucide-react'
+import { Plus, ChevronDown, Target } from 'lucide-react'
 import { categoriesService } from '../services/categories-service'
 import type { Category } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
-import { formatIDR } from '../lib/utils'
+
 
 const budgetPeriods = [
   { value: 'monthly', label: 'Monthly' },

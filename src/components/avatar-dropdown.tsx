@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { User, LogOut, Settings, ChevronDown } from 'lucide-react'
+import { LogOut, Settings, ChevronDown } from 'lucide-react'
 import { useAuth } from '../contexts/auth-context'
 import { cn } from '../lib/utils'
 

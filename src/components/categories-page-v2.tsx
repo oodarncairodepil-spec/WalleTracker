@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from './ui/dialog'
 import {
   Select,
@@ -27,14 +26,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Target, ChevronDown, ChevronRight } from 'lucide-react'
-import { categoriesServiceFallback } from '../services/categories-service-fallback'
+import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { categoriesServiceFallback, type CategoryItem, type BudgetSummary, type CategoryWithSubcategories } from '../services/categories-service-fallback'
 import { useAuth } from '../contexts/auth-context'
 
 export function CategoriesPageV2() {
   const { user } = useAuth()
-  const [categories, setCategories] = useState<any[]>([])
-  const [budgetSummary, setBudgetSummary] = useState<any>(null)
+  const [categories, setCategories] = useState<CategoryWithSubcategories[]>([])
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'add-main' | 'add-sub' | 'edit-main' | 'edit-sub'>('add-main')
@@ -43,19 +42,12 @@ export function CategoriesPageV2() {
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
   const [budgetPeriod, setBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly')
-  const [editingItem, setEditingItem] = useState<any>(null)
+  const [editingItem, setEditingItem] = useState<CategoryItem | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [itemToDelete, setItemToDelete] = useState<{item: any, isSubcategory: boolean} | null>(null)
+  const [itemToDelete, setItemToDelete] = useState<{item: CategoryItem, isSubcategory: boolean} | null>(null)
 
-  useEffect(() => {
-    if (user) {
-      loadCategories()
-      loadBudgetSummary()
-    }
-  }, [user])
-
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     if (!user) return
     setLoading(true)
     
@@ -69,9 +61,9 @@ export function CategoriesPageV2() {
     }
     
     setLoading(false)
-  }
+  }, [user])
 
-  const loadBudgetSummary = async () => {
+  const loadBudgetSummary = useCallback(async () => {
     if (!user) return
     
     try {
@@ -80,7 +72,14 @@ export function CategoriesPageV2() {
     } catch (error) {
       console.error('Error loading budget summary:', error)
     }
-  }
+  }, [user])
+
+  useEffect(() => {
+    if (user) {
+      loadCategories()
+      loadBudgetSummary()
+    }
+  }, [user, loadCategories, loadBudgetSummary])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -250,7 +249,7 @@ export function CategoriesPageV2() {
                           <SelectValue placeholder="Select main category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categories.filter(cat => !cat.isSubcategory).map((category) => (
+                          {categories.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
                               {category.name}
                             </SelectItem>
@@ -326,7 +325,7 @@ export function CategoriesPageV2() {
             <div className="space-y-4">
               <p>
                 Are you sure you want to delete {itemToDelete?.isSubcategory ? 'subcategory' : 'category'} 
-                <span className="font-semibold">"{itemToDelete?.item?.name}"</span>?
+                <span className="font-semibold">&quot;{itemToDelete?.item?.name}&quot;</span>?
               </p>
               <p className="text-sm text-muted-foreground">
                 This action cannot be undone.
@@ -401,13 +400,13 @@ export function CategoriesPageV2() {
         </div>
 
         <div className="grid gap-4">
-          {categories.filter(cat => !cat.isSubcategory).map((category) => {
+          {categories.map((category) => {
             // Calculate total budget and spent for this category's subcategories
-            const categoryBudgets = budgetSummary?.categories?.filter((budget: any) => 
-              category.subcategories?.some((sub: any) => sub.id === budget.id)
+            const categoryBudgets = budgetSummary?.categories?.filter((budget) => 
+              category.subcategories?.some((sub) => sub.id === budget.id)
             ) || []
-            const totalBudget = categoryBudgets.reduce((sum: number, budget: any) => sum + budget.budgetAmount, 0)
-            const totalSpent = categoryBudgets.reduce((sum: number, budget: any) => sum + budget.spent, 0)
+            const totalBudget = categoryBudgets.reduce((sum, budget) => sum + budget.budgetAmount, 0)
+            const totalSpent = categoryBudgets.reduce((sum, budget) => sum + budget.spent, 0)
             const totalLeftover = totalBudget - totalSpent
             
             return (
