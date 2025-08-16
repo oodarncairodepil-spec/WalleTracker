@@ -356,9 +356,7 @@ export function FundsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-gray-900">{formatCurrency(fund.balance)}</p>
-                  </div>
+
                 </div>
               </CardHeader>
             </Card>
