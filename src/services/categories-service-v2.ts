@@ -50,7 +50,7 @@ export interface CategoryItem {
 
 export const categoriesServiceV2 = {
   // Get all main categories for a user
-  async getMainCategories(userId: string, type?: 'income' | 'expense'): Promise<{ data: MainCategory[] | null; error: any }> {
+  async getMainCategories(userId: string, type?: 'income' | 'expense'): Promise<{ data: MainCategory[] | null; error: Error | null }> {
     try {
       let query = supabase
         .from('main_categories')
@@ -67,12 +67,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching main categories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get subcategories for a specific main category
-  async getSubcategories(mainCategoryId: string): Promise<{ data: Subcategory[] | null; error: any }> {
+  async getSubcategories(mainCategoryId: string): Promise<{ data: Subcategory[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('subcategories')
@@ -84,12 +84,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching subcategories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get all subcategories for a user
-  async getAllSubcategories(userId: string): Promise<{ data: Subcategory[] | null; error: any }> {
+  async getAllSubcategories(userId: string): Promise<{ data: Subcategory[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('subcategories')
@@ -101,12 +101,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching all subcategories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get main categories with their subcategories
-  async getCategoriesWithSubcategories(userId: string, type?: 'income' | 'expense'): Promise<{ data: CategoryWithSubcategories[] | null; error: any }> {
+  async getCategoriesWithSubcategories(userId: string, type?: 'income' | 'expense'): Promise<{ data: CategoryWithSubcategories[] | null; error: Error | null }> {
     try {
       // Get main categories
       const { data: mainCategories, error: mainError } = await this.getMainCategories(userId, type)
@@ -129,12 +129,12 @@ export const categoriesServiceV2 = {
       return { data: result, error: null }
     } catch (error) {
       console.error('Error fetching categories with subcategories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get flattened list of all categories and subcategories (for compatibility with old UI)
-  async getAllCategoriesFlattened(userId: string, type?: 'income' | 'expense'): Promise<{ data: CategoryItem[] | null; error: any }> {
+  async getAllCategoriesFlattened(userId: string, type?: 'income' | 'expense'): Promise<{ data: CategoryItem[] | null; error: Error | null }> {
     try {
       let query = supabase
         .from('categories_with_subcategories')
@@ -168,12 +168,12 @@ export const categoriesServiceV2 = {
       return { data: result, error: null }
     } catch (error) {
       console.error('Error fetching flattened categories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Add a new main category
-  async addMainCategory(category: Omit<MainCategory, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: MainCategory | null; error: any }> {
+  async addMainCategory(category: Omit<MainCategory, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: MainCategory | null; error: Error | null }> {
     try {
       // Check for existing main category with same name and type
       const { data: existingCategory, error: checkError } = await supabase
@@ -191,10 +191,7 @@ export const categoriesServiceV2 = {
       if (existingCategory) {
         return { 
           data: null, 
-          error: { 
-            message: `Main category "${category.name}" already exists`,
-            code: 'DUPLICATE_CATEGORY'
-          }
+          error: new Error(`Main category "${category.name}" already exists`)
         }
       }
       
@@ -207,12 +204,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error adding main category:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Add a new subcategory
-  async addSubcategory(subcategory: Omit<Subcategory, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Subcategory | null; error: any }> {
+  async addSubcategory(subcategory: Omit<Subcategory, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Subcategory | null; error: Error | null }> {
     try {
       // Check for existing subcategory with same name under the same main category
       const { data: existingSubcategory, error: checkError } = await supabase
@@ -237,10 +234,7 @@ export const categoriesServiceV2 = {
         
         return { 
           data: null, 
-          error: { 
-            message: `Subcategory "${subcategory.name}" already exists under "${mainCategory?.name || 'this category'}"`,
-            code: 'DUPLICATE_SUBCATEGORY'
-          }
+          error: new Error(`Subcategory "${subcategory.name}" already exists under "${mainCategory?.name || 'this category'}"`)
         }
       }
       
@@ -253,12 +247,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error adding subcategory:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Update a main category
-  async updateMainCategory(id: string, updates: Partial<Omit<MainCategory, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<{ data: MainCategory | null; error: any }> {
+  async updateMainCategory(id: string, updates: Partial<Omit<MainCategory, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<{ data: MainCategory | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('main_categories')
@@ -270,12 +264,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error updating main category:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Update a subcategory
-  async updateSubcategory(id: string, updates: Partial<Omit<Subcategory, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<{ data: Subcategory | null; error: any }> {
+  async updateSubcategory(id: string, updates: Partial<Omit<Subcategory, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<{ data: Subcategory | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('subcategories')
@@ -287,12 +281,12 @@ export const categoriesServiceV2 = {
       return { data, error }
     } catch (error) {
       console.error('Error updating subcategory:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Delete a main category (and all its subcategories due to CASCADE)
-  async deleteMainCategory(id: string): Promise<{ error: any }> {
+  async deleteMainCategory(id: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
         .from('main_categories')
@@ -302,12 +296,12 @@ export const categoriesServiceV2 = {
       return { error }
     } catch (error) {
       console.error('Error deleting main category:', error)
-      return { error }
+      return { error: error as Error }
     }
   },
 
   // Delete a subcategory
-  async deleteSubcategory(id: string): Promise<{ error: any }> {
+  async deleteSubcategory(id: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
         .from('subcategories')
@@ -317,12 +311,12 @@ export const categoriesServiceV2 = {
       return { error }
     } catch (error) {
       console.error('Error deleting subcategory:', error)
-      return { error }
+      return { error: error as Error }
     }
   },
 
   // Create default categories for a new user
-  async createDefaultCategories(userId: string): Promise<{ error: any }> {
+  async createDefaultCategories(userId: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase.rpc('create_default_categories_for_user', {
         user_uuid: userId
@@ -331,12 +325,12 @@ export const categoriesServiceV2 = {
       return { error }
     } catch (error) {
       console.error('Error creating default categories:', error)
-      return { error }
+      return { error: error as Error }
     }
   },
 
   // Get budget summary (sum of all subcategory budgets by type)
-  async getBudgetSummary(userId: string): Promise<{ data: { type: string; total_budget: number }[] | null; error: any }> {
+  async getBudgetSummary(userId: string): Promise<{ data: { type: string; total_budget: number }[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('subcategories')
@@ -350,7 +344,7 @@ export const categoriesServiceV2 = {
       if (error) return { data: null, error }
       
       // Group by type and sum budgets
-      const summary = (data || []).reduce((acc: any[], item: any) => {
+      const summary = (data || []).reduce((acc: { type: string; total_budget: number }[], item: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const type = item.main_categories.type
         const existing = acc.find(s => s.type === type)
         
@@ -361,12 +355,12 @@ export const categoriesServiceV2 = {
         }
         
         return acc
-      }, [])
+      }, [] as { type: string; total_budget: number }[])
       
       return { data: summary, error: null }
     } catch (error) {
-      console.error('Error fetching budget summary:', error)
-      return { data: null, error }
+      console.error('Error getting budget summary:', error)
+      return { data: null, error: error as Error }
     }
   }
 }

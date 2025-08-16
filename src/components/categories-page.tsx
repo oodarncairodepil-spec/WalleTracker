@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import { Input } from './ui/input'
@@ -26,7 +26,7 @@ const budgetPeriods = [
 export function CategoriesPage() {
   const { user } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
-  const [budgetSummary, setBudgetSummary] = useState<any[]>([])
+  const [budgetSummary, setBudgetSummary] = useState<Array<{id: string, budgetAmount: number, spent: number, remaining: number}>>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'add-category' | 'add-subcategory' | 'edit'>('add-category')
@@ -61,14 +61,7 @@ export function CategoriesPage() {
   
   const [selectedPeriod, setSelectedPeriod] = useState<'monthly' | 'weekly' | '10days'>('monthly')
 
-  useEffect(() => {
-    if (user) {
-      loadCategories()
-      loadBudgetSummary()
-    }
-  }, [user, selectedPeriod])
-
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     if (!user) return
     
     setLoading(true)
@@ -111,9 +104,9 @@ export function CategoriesPage() {
     }
     
     setLoading(false)
-  }
+  }, [user])
 
-  const loadBudgetSummary = async () => {
+  const loadBudgetSummary = useCallback(async () => {
     if (!user) return
     
     const { data, error } = await categoriesService.getBudgetSummary(user.id, selectedPeriod)
@@ -123,7 +116,14 @@ export function CategoriesPage() {
     } else {
       setBudgetSummary(data || [])
     }
-  }
+  }, [user, selectedPeriod])
+
+  useEffect(() => {
+    if (user) {
+      loadCategories()
+      loadBudgetSummary()
+    }
+  }, [user, selectedPeriod, loadCategories, loadBudgetSummary])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -441,7 +441,7 @@ export function CategoriesPage() {
             <DialogHeader>
               <DialogTitle>Delete Category</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete the category "{categoryToDelete?.name}"? This action cannot be undone.
+                Are you sure you want to delete the category &quot;{categoryToDelete?.name}&quot;? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end space-x-2">

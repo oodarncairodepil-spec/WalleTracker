@@ -42,7 +42,7 @@ export function CategoriesPageV2() {
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
   const [budgetPeriod, setBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly')
-  const [editingItem, setEditingItem] = useState<CategoryItem | null>(null)
+  const [editingItem, setEditingItem] = useState<CategoryItem | CategoryWithSubcategories | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{item: CategoryItem, isSubcategory: boolean} | null>(null)
@@ -126,12 +126,12 @@ export function CategoriesPageV2() {
     }
   }
 
-  const handleEdit = (item: any, isSubcategory: boolean) => {
+  const handleEdit = (item: CategoryItem | CategoryWithSubcategories, isSubcategory: boolean) => {
     setEditingItem(item)
     setName(item.name)
     setType(item.type || 'expense')
-    setBudgetAmount(item.budgetAmount?.toString() || '')
-    setBudgetPeriod(item.budgetPeriod || 'monthly')
+    setBudgetAmount('budgetAmount' in item ? item.budgetAmount?.toString() || '' : '')
+    setBudgetPeriod('budgetPeriod' in item ? item.budgetPeriod || 'monthly' : 'monthly')
     setDialogMode(isSubcategory ? 'edit-sub' : 'edit-main')
     setDialogOpen(true)
   }

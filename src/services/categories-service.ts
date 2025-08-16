@@ -3,7 +3,7 @@ import type { Category } from '../lib/supabase'
 
 export const categoriesService = {
   // Get all categories for a user
-  async getCategories(userId: string): Promise<{ data: Category[] | null; error: any }> {
+  async getCategories(userId: string): Promise<{ data: Category[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('categories')
@@ -16,12 +16,12 @@ export const categoriesService = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching categories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get categories by type
-  async getCategoriesByType(userId: string, type: 'income' | 'expense'): Promise<{ data: Category[] | null; error: any }> {
+  async getCategoriesByType(userId: string, type: 'income' | 'expense'): Promise<{ data: Category[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('categories')
@@ -34,12 +34,12 @@ export const categoriesService = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching categories by type:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Add a new category or sub-category
-  async addCategory(category: Omit<Category, 'id' | 'created_at' | 'updated_at'> | any): Promise<{ data: Category | null; error: any }> {
+  async addCategory(category: Omit<Category, 'id' | 'created_at' | 'updated_at'>): Promise<{ data: Category | null; error: Error | null }> {
     try {
       // Check for existing category with same name, type, user_id, and parent_id
       let query = supabase
@@ -64,14 +64,11 @@ export const categoriesService = {
       }
       
       if (existingCategory) {
-        return { 
-          data: null, 
-          error: { 
-            message: category.parent_id 
-              ? `Sub-category "${category.name}" already exists under this parent category`
-              : `Category "${category.name}" already exists`,
-            code: 'DUPLICATE_CATEGORY'
-          }
+        return {
+          data: null,
+          error: new Error(category.parent_id 
+            ? `Sub-category "${category.name}" already exists under this parent category`
+            : `Category "${category.name}" already exists`)
         }
       }
       
@@ -85,12 +82,12 @@ export const categoriesService = {
       return { data, error }
     } catch (error) {
       console.error('Error adding category:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Update a category
-  async updateCategory(id: string, updates: Partial<Omit<Category, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<{ data: Category | null; error: any }> {
+  async updateCategory(id: string, updates: Partial<Omit<Category, 'id' | 'user_id' | 'created_at' | 'updated_at'>>): Promise<{ data: Category | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('categories')
@@ -102,12 +99,12 @@ export const categoriesService = {
       return { data, error }
     } catch (error) {
       console.error('Error updating category:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Delete a category (soft delete by setting is_active to false)
-  async deleteCategory(id: string): Promise<{ error: any }> {
+  async deleteCategory(id: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
         .from('categories')
@@ -117,12 +114,12 @@ export const categoriesService = {
       return { error }
     } catch (error) {
       console.error('Error deleting category:', error)
-      return { error }
+      return { error: error as Error }
     }
   },
 
   // Hard delete a category (permanently remove)
-  async hardDeleteCategory(id: string): Promise<{ error: any }> {
+  async hardDeleteCategory(id: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
         .from('categories')
@@ -132,12 +129,12 @@ export const categoriesService = {
       return { error }
     } catch (error) {
       console.error('Error hard deleting category:', error)
-      return { error }
+      return { error: error as Error }
     }
   },
 
   // Create default categories for a new user
-  async createDefaultCategories(userId: string): Promise<{ error: any }> {
+  async createDefaultCategories(userId: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase.rpc('create_default_categories_for_user', {
         user_uuid: userId
@@ -146,12 +143,12 @@ export const categoriesService = {
       return { error }
     } catch (error) {
       console.error('Error creating default categories:', error)
-      return { error }
+      return { error: error as Error }
     }
   },
 
   // Get categories with hierarchy (parent-child relationships)
-  async getCategoriesWithHierarchy(userId: string): Promise<{ data: any[] | null; error: any }> {
+  async getCategoriesWithHierarchy(userId: string): Promise<{ data: Category[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('categories_with_hierarchy')
@@ -164,12 +161,12 @@ export const categoriesService = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching categories with hierarchy:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get sub-categories for a parent category
-  async getSubCategories(parentId: string): Promise<{ data: Category[] | null; error: any }> {
+  async getSubCategories(parentId: string): Promise<{ data: Category[] | null; error: Error | null }> {
     try {
       const { data, error } = await supabase
         .from('categories')
@@ -181,12 +178,12 @@ export const categoriesService = {
       return { data, error }
     } catch (error) {
       console.error('Error fetching sub-categories:', error)
-      return { data: null, error }
+      return { data: null, error: error as Error }
     }
   },
 
   // Get budget summary for categories
-  async getBudgetSummary(userId: string, period: 'monthly' | 'weekly' | '10days' = 'monthly'): Promise<{ data: any[] | null; error: any }> {
+  async getBudgetSummary(userId: string, period: 'monthly' | 'weekly' | '10days' = 'monthly'): Promise<{ data: Array<{type: string, total_budget: number}> | null; error: Error | null }> {
     try {
       // Get categories with their budget amounts
       const { data: categories, error: categoriesError } = await supabase
@@ -253,8 +250,8 @@ export const categoriesService = {
       
       return { data: budgetSummary, error: null }
     } catch (error) {
-      console.error('Error getting budget summary:', error)
-      return { data: null, error }
+      console.error('Error fetching budget summary:', error)
+      return { data: null, error: error as Error }
     }
   }
 }

@@ -880,7 +880,7 @@ export function TransactionHistory() {
           <DialogHeader>
             <DialogTitle>Delete Transaction</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{transactionToDelete?.description}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{transactionToDelete?.description}&quot;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 justify-end mt-6">

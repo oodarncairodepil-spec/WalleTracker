@@ -373,7 +373,7 @@ export function FundsPage() {
           <DialogHeader>
             <DialogTitle>Delete Fund</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{fundToDelete?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{fundToDelete?.name}&quot;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end space-x-2">

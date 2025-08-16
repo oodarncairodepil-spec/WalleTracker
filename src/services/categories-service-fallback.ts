@@ -101,7 +101,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
 
        // Add main categories
        const mainCategoriesArray = mainCategories || [];
-       mainCategoriesArray.forEach((category: any) => {
+       mainCategoriesArray.forEach((category) => {
          result.push({
            id: category.id,
            name: category.name,
@@ -115,7 +115,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
        });
 
        // Add subcategories
-       (subcategories || []).forEach((category: any) => {
+       (subcategories || []).forEach((category) => {
          result.push({
            id: category.id,
            name: category.name,
