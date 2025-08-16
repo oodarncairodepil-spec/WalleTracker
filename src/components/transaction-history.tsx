@@ -1,22 +1,22 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from './ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Card, CardContent } from './ui/card'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Label } from './ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Badge } from './ui/badge'
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 // Table imports removed as we're now using card layout
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, Filter, Calendar, DollarSign } from 'lucide-react'
+import { Plus, Trash2, Filter } from 'lucide-react'
 import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
-import { categoriesService } from '../services/categories-service'
+
 import { categoriesServiceV2, type MainCategory, type Subcategory } from '../services/categories-service-v2'
-import type { Transaction, Fund, Category } from '../lib/supabase'
+import type { Transaction, Fund } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
 
@@ -44,7 +44,7 @@ const fallbackCategories = {
 }
 
 export function TransactionHistory() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [funds, setFunds] = useState<Fund[]>([])
   const [categories, setCategories] = useState<MainCategory[]>([])
@@ -53,7 +53,6 @@ export function TransactionHistory() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   
   // Form state
-  const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
   const [subcategory, setSubcategory] = useState('')
@@ -73,21 +72,15 @@ export function TransactionHistory() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
   
-  // Transaction detail popup state
-  const [isTransactionDetailOpen, setIsTransactionDetailOpen] = useState(false)
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+
   
   // Delete confirmation dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null)
 
-  useEffect(() => {
-    if (user) {
-      loadData()
-    }
-  }, [user])
 
-  const loadData = async () => {
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [transactionsData, fundsData] = await Promise.all([
@@ -105,19 +98,28 @@ export function TransactionHistory() {
         if (defaultFund && sourceOfFundsId === 'none') {
           setSourceOfFundsId(defaultFund.id)
         }
-      } catch (error) {
+      } catch {
         // Default fund not found or error, keep 'none' selection
         console.log('No default fund found')
       }
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('Error loading data:', error instanceof Error ? error.message : String(error))
       toast.error('Failed to load data')
     } finally {
       setLoading(false)
     }
-  }
+  }, [sourceOfFundsId, user])
 
-  const loadCategories = async () => {
+  useEffect(() => {
+    if (user) {
+      loadData()
+    } else if (!authLoading) {
+      // If no user and auth is not loading, set loading to false
+      setLoading(false)
+    }
+  }, [user, authLoading, loadData])
+
+  const loadCategories = useCallback(async () => {
     if (!user) return
     
     try {
@@ -146,7 +148,7 @@ export function TransactionHistory() {
         setCategories(data || [])
       }
     } catch (error) {
-      console.error('Error loading categories:', error)
+      console.error('Error loading categories:', error instanceof Error ? error.message : String(error))
       // Use fallback categories
       const fallbackCategoriesList: MainCategory[] = [
         ...fallbackCategories.expense.map((cat, index) => ({
@@ -166,9 +168,9 @@ export function TransactionHistory() {
       ]
       setCategories(fallbackCategoriesList)
     }
-  }
+  }, [user])
 
-  const loadAllSubcategories = async () => {
+  const loadAllSubcategories = useCallback(async () => {
     if (!user) return
     
     try {
@@ -180,10 +182,10 @@ export function TransactionHistory() {
         setAllSubcategories(subcategoriesData || [])
       }
     } catch (error) {
-      console.error('Error loading all subcategories:', error)
+      console.error('Error loading all subcategories:', error instanceof Error ? error.message : String(error))
       setAllSubcategories([])
     }
-  }
+  }, [user])
 
   // Helper function to get categories by type
   const getCategoriesByType = (categoryType: 'income' | 'expense') => {
@@ -205,7 +207,7 @@ export function TransactionHistory() {
           setSubcategories(subcategoriesData || [])
         }
       } catch (error) {
-        console.error('Error fetching subcategories:', error)
+        console.error('Error fetching subcategories:', error instanceof Error ? error.message : String(error))
         setSubcategories([])
       }
     } else {
@@ -256,14 +258,13 @@ export function TransactionHistory() {
       // Reload data
       await loadData()
     } catch (error) {
-      console.error('Error saving transaction:', error)
+      console.error('Error saving transaction:', error instanceof Error ? error.message : String(error))
       toast.error('Failed to save transaction')
     }
   }
 
   const handleEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction)
-    setDescription(transaction.description)
     setAmount(transaction.amount.toString())
     setCategory(transaction.category)
     setType(transaction.type)
@@ -301,7 +302,7 @@ export function TransactionHistory() {
       setIsDeleteDialogOpen(false)
       setTransactionToDelete(null)
     } catch (error) {
-      console.error('Error deleting transaction:', error)
+      console.error('Error deleting transaction:', error instanceof Error ? error.message : String(error))
       console.error('Error details:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
@@ -319,7 +320,6 @@ export function TransactionHistory() {
 
   const resetForm = async () => {
     setEditingTransaction(null)
-    setDescription('')
     setAmount('')
     setCategory('')
     setSubcategory('')
@@ -333,7 +333,7 @@ export function TransactionHistory() {
     try {
       const defaultFund = await fundsService.getDefaultFund()
       setSourceOfFundsId(defaultFund ? defaultFund.id : 'none')
-    } catch (error) {
+    } catch {
       setSourceOfFundsId('none')
     }
   }
@@ -343,29 +343,9 @@ export function TransactionHistory() {
     await resetForm()
   }
 
-  const handleTransactionClick = (transaction: Transaction) => {
-    setSelectedTransaction(transaction)
-    setIsTransactionDetailOpen(true)
-  }
 
-  const handleTransactionDetailClose = () => {
-    setIsTransactionDetailOpen(false)
-    setSelectedTransaction(null)
-  }
 
-  const handleEditFromDetail = () => {
-    if (selectedTransaction) {
-      handleEdit(selectedTransaction)
-      setIsTransactionDetailOpen(false)
-    }
-  }
 
-  const handleDeleteFromDetail = () => {
-    if (selectedTransaction) {
-      setIsTransactionDetailOpen(false)
-      handleDelete(selectedTransaction)
-    }
-  }
 
   const formatCurrency = (amount: number) => {
     return formatIDR(amount)
@@ -418,7 +398,7 @@ export function TransactionHistory() {
 
   const allCategories = [...new Set(transactions.map(t => t.category))]
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="p-6 space-y-6">
         <div className="animate-pulse space-y-4">
@@ -785,94 +765,7 @@ export function TransactionHistory() {
         </CardContent>
       </Card>
       
-      {/* Transaction Detail Dialog */}
-      <Dialog open={isTransactionDetailOpen} onOpenChange={setIsTransactionDetailOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Transaction Details</DialogTitle>
-          </DialogHeader>
-          {selectedTransaction && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium text-gray-600">Description</Label>
-                <p className="text-lg font-medium">{selectedTransaction.description}</p>
-              </div>
-              
-              {selectedTransaction.note && (
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Note</Label>
-                  <p className="text-sm text-gray-700">{selectedTransaction.note}</p>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Amount</Label>
-                  <p className={`text-lg font-bold ${
-                    selectedTransaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {selectedTransaction.type === 'income' ? '+' : '-'}{formatCurrency(selectedTransaction.amount)}
-                  </p>
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Type</Label>
-                  <Badge variant={selectedTransaction.type === 'income' ? 'default' : 'secondary'} className="mt-1">
-                    {selectedTransaction.type === 'income' ? 'Income' : 'Expense'}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Category</Label>
-                  <p className="text-sm">{getCategoryName(selectedTransaction.category)}</p>
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Status</Label>
-                  <Badge variant={selectedTransaction.status === 'paid' ? 'default' : 'secondary'} className="mt-1">
-                    {selectedTransaction.status === 'paid' ? 'Paid' : 'Unpaid'}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Date</Label>
-                  <p className="text-sm">{formatDate(selectedTransaction.date)}</p>
-                </div>
-                
-                {selectedTransaction.fund && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Source of Funds</Label>
-                    <p className="text-sm">{selectedTransaction.fund.name}</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={handleEditFromDetail}
-                  className="flex-1"
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDeleteFromDetail}
-                  className="flex-1 text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

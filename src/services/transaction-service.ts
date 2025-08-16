@@ -4,20 +4,32 @@ import { fundsService } from './funds-service'
 
 export class TransactionService {
   async getTransactions(): Promise<Transaction[]> {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        fund:funds(id, name, balance)
-      `)
-      .order('date', { ascending: false })
+    try {
+      // Check if user is authenticated first
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.log('[TRANSACTIONS DEBUG] No authenticated user, returning empty array')
+        return []
+      }
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          fund:funds(id, name, balance)
+        `)
+        .order('date', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching transactions:', error)
-      throw new Error(`Failed to fetch transactions: ${error.message}`)
+      if (error) {
+        console.error('Error fetching transactions:', error)
+        throw new Error(`Failed to fetch transactions: ${error.message}`)
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Exception in getTransactions:', error)
+      throw error
     }
-
-    return data || []
   }
 
   async createTransaction(transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'fund'>): Promise<Transaction> {
@@ -147,27 +159,45 @@ export class TransactionService {
   }
 
   async getUnpaidExpenses(): Promise<Transaction[]> {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        *,
-        fund:funds(id, name, balance)
-      `)
-      .eq('type', 'expense')
-      .eq('status', 'unpaid')
-      .order('date', { ascending: false })
+    try {
+      // Check if user is authenticated first
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.log('[UNPAID EXPENSES DEBUG] No authenticated user, returning empty array')
+        return []
+      }
+      
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          fund:funds(id, name, balance)
+        `)
+        .eq('type', 'expense')
+        .eq('status', 'unpaid')
+        .order('date', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching unpaid expenses:', error)
-      throw new Error(`Failed to fetch unpaid expenses: ${error.message}`)
+      if (error) {
+        console.error('Database error fetching unpaid expenses:', error)
+        throw new Error(`Failed to fetch unpaid expenses: ${error.message}`)
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Network error fetching unpaid expenses:', error)
+      // Return empty array instead of throwing to prevent app crashes
+      return []
     }
-
-    return data || []
   }
 
   async getUnpaidExpensesTotal(): Promise<number> {
-    const unpaidExpenses = await this.getUnpaidExpenses()
-    return unpaidExpenses.reduce((total, expense) => total + expense.amount, 0)
+    try {
+      const unpaidExpenses = await this.getUnpaidExpenses()
+      return unpaidExpenses.reduce((total, expense) => total + expense.amount, 0)
+    } catch (error) {
+      console.error('Error calculating unpaid expenses total:', error)
+      return 0
+    }
   }
 
   async getCategoryTotals(): Promise<Record<string, number>> {

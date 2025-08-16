@@ -10,6 +10,8 @@ export default function Home() {
   const { user, loading } = useAuth();
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
 
+  console.log('[PAGE DEBUG] Home component render - user:', user ? 'EXISTS' : 'NULL', 'loading:', loading);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">

@@ -3,17 +3,34 @@ import type { Fund } from '../lib/supabase'
 
 export class FundsService {
   async getFunds(): Promise<Fund[]> {
-    const { data, error } = await supabase
-      .from('funds')
-      .select('*')
-      .order('created_at', { ascending: false })
+    console.log('[FUNDS DEBUG] getFunds called')
+    try {
+      // Check if user is authenticated first
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.log('[FUNDS DEBUG] No authenticated user, returning empty array')
+        return []
+      }
+      
+      console.log('[FUNDS DEBUG] Making Supabase request to funds table')
+      const { data, error } = await supabase
+        .from('funds')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching funds:', error)
-      throw new Error(`Failed to fetch funds: ${error.message}`)
+      console.log('[FUNDS DEBUG] Supabase response - data:', data ? `${data.length} items` : 'null', 'error:', error)
+
+      if (error) {
+        console.error('[FUNDS DEBUG] Error fetching funds:', error)
+        throw new Error(`Failed to fetch funds: ${error.message}`)
+      }
+
+      console.log('[FUNDS DEBUG] Successfully fetched funds:', data?.length || 0)
+      return data || []
+    } catch (err) {
+      console.error('[FUNDS DEBUG] Exception in getFunds:', err)
+      throw err
     }
-
-    return data || []
   }
 
   async createFund(fund: Omit<Fund, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Fund> {
@@ -69,10 +86,19 @@ export class FundsService {
   }
 
   async getTotalBalance(): Promise<number> {
-    const funds = await this.getFunds()
-    return funds
-      .filter(fund => fund.status === 'Active')
-      .reduce((total, fund) => total + fund.balance, 0)
+    console.log('[FUNDS DEBUG] getTotalBalance called')
+    try {
+      const funds = await this.getFunds()
+      console.log('[FUNDS DEBUG] Got funds for total balance calculation:', funds.length)
+      const activeFunds = funds.filter(fund => fund.status === 'Active')
+      console.log('[FUNDS DEBUG] Active funds:', activeFunds.length)
+      const total = activeFunds.reduce((total, fund) => total + fund.balance, 0)
+      console.log('[FUNDS DEBUG] Total balance calculated:', total)
+      return total
+    } catch (err) {
+      console.error('[FUNDS DEBUG] Exception in getTotalBalance:', err)
+      throw err
+    }
   }
 
   async updateFundBalance(id: string, amount: number, operation: 'add' | 'subtract'): Promise<Fund> {

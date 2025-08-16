@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { Button } from './ui/button'
 import { Card, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
@@ -16,7 +17,7 @@ import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
 
 export function FundsPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [funds, setFunds] = useState<Fund[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -34,8 +35,11 @@ export function FundsPage() {
   useEffect(() => {
     if (user) {
       loadFunds()
+    } else if (!authLoading) {
+      // If no user and auth is not loading, set loading to false
+      setLoading(false)
     }
-  }, [user])
+  }, [user, authLoading])
 
   const loadFunds = async () => {
     try {
@@ -120,10 +124,7 @@ export function FundsPage() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (fund: Fund) => {
-    setFundToDelete(fund)
-    setIsDeleteDialogOpen(true)
-  }
+
 
   const confirmDelete = async () => {
     if (!fundToDelete) return
@@ -160,7 +161,7 @@ export function FundsPage() {
       .reduce((total, fund) => total + fund.balance, 0)
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="p-6 space-y-6">
         <div className="animate-pulse space-y-4">
@@ -333,9 +334,11 @@ export function FundsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     {fund.image_url ? (
-                      <img 
+                      <Image 
                         src={fund.image_url} 
                         alt={fund.name}
+                        width={24}
+                        height={24}
                         className="w-6 h-6 rounded-md object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -346,7 +349,7 @@ export function FundsPage() {
                     <div className={`w-6 h-6 bg-gradient-to-br from-teal-500 to-teal-600 rounded-md flex items-center justify-center text-white font-bold text-xs ${fund.image_url ? 'hidden' : ''}`}>
                       {fund.name.substring(0, 2).toUpperCase()}
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <CardTitle className="text-xs font-medium text-gray-800">{fund.name}</CardTitle>
                       {fund.is_default && (
                         <div className="flex items-center space-x-1">
@@ -356,7 +359,11 @@ export function FundsPage() {
                       )}
                     </div>
                   </div>
-
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {formatIDR(fund.balance)}
+                    </div>
+                  </div>
                 </div>
               </CardHeader>
             </Card>

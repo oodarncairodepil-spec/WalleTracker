@@ -101,7 +101,7 @@ export function ExpenseTracker() {
         setTransactions(data || []);
       }
     } catch (error) {
-      console.error('Error loading transactions:', error);
+      console.error('Error loading transactions:', error instanceof Error ? error.message : String(error));
       toast.error('Failed to load transactions');
     } finally {
       setLoading(false);
@@ -139,7 +139,7 @@ export function ExpenseTracker() {
         setCategories(data || []);
       }
     } catch (error) {
-      console.error('Error loading categories:', error);
+      console.error('Error loading categories:', error instanceof Error ? error.message : String(error));
       // Use fallback categories
       const fallbackCategoriesList: Category[] = [
         ...fallbackCategories.expense.map((cat, index) => ({
@@ -203,7 +203,7 @@ export function ExpenseTracker() {
           setTransactions(prev => [data, ...prev]);
         }
       } catch (error) {
-        console.error('Error adding transaction:', error);
+        console.error('Error adding transaction:', error instanceof Error ? error.message : String(error));
         toast.error('Failed to add transaction');
         return;
       }
@@ -233,7 +233,7 @@ export function ExpenseTracker() {
           return;
         }
       } catch (error) {
-        console.error('Error deleting transaction:', error);
+        console.error('Error deleting transaction:', error instanceof Error ? error.message : String(error));
         toast.error('Failed to delete transaction');
         return;
       }

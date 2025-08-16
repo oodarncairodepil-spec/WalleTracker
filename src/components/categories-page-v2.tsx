@@ -28,6 +28,7 @@ import { Badge } from './ui/badge'
 import { toast } from 'sonner'
 import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { categoriesServiceFallback, type CategoryItem, type BudgetSummary, type CategoryWithSubcategories } from '../services/categories-service-fallback'
+import type { Category } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 
 export function CategoriesPageV2() {
@@ -136,8 +137,8 @@ export function CategoriesPageV2() {
     setDialogOpen(true)
   }
 
-  const handleDeleteConfirm = (item: any, isSubcategory: boolean) => {
-    setItemToDelete({ item, isSubcategory })
+  const handleDeleteConfirm = (item: CategoryItem | CategoryWithSubcategories, isSubcategory: boolean) => {
+    setItemToDelete({ item: item as CategoryItem, isSubcategory })
     setDeleteConfirmOpen(true)
   }
 
@@ -436,14 +437,14 @@ export function CategoriesPageV2() {
                 {expandedCategories.has(category.id) && category.subcategories && category.subcategories.length > 0 && (
                   <CardContent>
                     <div className="space-y-2">
-                      {category.subcategories.map((subcategory: any) => {
-                        const subBudget = budgetSummary?.categories?.find((budget: any) => budget.id === subcategory.id)
-                        const budgetAmount = subBudget?.budgetAmount || subcategory.budgetAmount || 0
+                      {category.subcategories.map((subcategory: Category) => {
+                        const subBudget = budgetSummary?.categories?.find((budget) => budget.id === subcategory.id)
+                        const budgetAmount = subBudget?.budgetAmount || subcategory.budget_amount || 0
                         const spent = subBudget?.spent || 0
                         const leftover = budgetAmount - spent
                         
                         return (
-                          <div key={subcategory.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleEdit(subcategory, true); }}>
+                          <div key={subcategory.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleEdit(subcategory as unknown as CategoryItem, true); }}>
                             <div className="flex flex-col gap-1">
                               <span className="font-medium">{subcategory.name}</span>
                               {budgetAmount > 0 && (

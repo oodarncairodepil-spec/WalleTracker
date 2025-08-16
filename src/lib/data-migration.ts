@@ -55,9 +55,9 @@ export async function migrateLocalDataToSupabase(): Promise<{ success: boolean; 
   for (const transaction of localTransactions) {
     try {
       // Remove local-only fields and prepare for Supabase
-      const { id: _id, created_at: _created_at, updated_at: _updated_at, user_id: _user_id, ...transactionData } = transaction
+      const { created_at: _created_at, updated_at: _updated_at, user_id: _user_id, ...cleanTransaction } = transaction
       
-      const { error } = await transactionService.addTransaction(transactionData)
+      const { error } = await transactionService.addTransaction(cleanTransaction)
       
       if (error) {
         errors.push(`Failed to migrate transaction: ${transaction.description} - ${error.message}`)
@@ -65,7 +65,7 @@ export async function migrateLocalDataToSupabase(): Promise<{ success: boolean; 
         migratedCount++
       }
     } catch (error) {
-      errors.push(`Error migrating transaction: ${transaction.description} - ${error}`)
+      errors.push(`Error migrating transaction: ${transaction.description} - ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 

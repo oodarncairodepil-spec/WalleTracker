@@ -53,13 +53,13 @@ export function CategoriesPage() {
   
   // Form state
   const [name, setName] = useState('')
-  const [subCategoryName, setSubCategoryName] = useState('')
+  const [, setSubCategoryName] = useState('')
   const [selectedParentCategory, setSelectedParentCategory] = useState('')
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [budgetAmount, setBudgetAmount] = useState('')
   const [budgetPeriod, setBudgetPeriod] = useState<'monthly' | 'weekly' | '10days'>('monthly')
   
-  const [selectedPeriod, setSelectedPeriod] = useState<'monthly' | 'weekly' | '10days'>('monthly')
+  const [selectedPeriod] = useState<'monthly' | 'weekly' | '10days'>('monthly')
 
   const loadCategories = useCallback(async () => {
     if (!user) return
@@ -114,7 +114,14 @@ export function CategoriesPage() {
     if (error) {
       console.error('Error loading budget summary:', error)
     } else {
-      setBudgetSummary(data || [])
+      // Transform the data to match the expected structure
+      const transformedData = (data || []).map((item: {type?: string; total_budget?: number}) => ({
+        id: item.type || '',
+        budgetAmount: item.total_budget || 0,
+        spent: 0,
+        remaining: item.total_budget || 0
+      }))
+      setBudgetSummary(transformedData)
     }
   }, [user, selectedPeriod])
 
@@ -180,8 +187,8 @@ export function CategoriesPage() {
         
         if (error) {
           console.error('Error adding category:', error)
-          if (error.code === 'DUPLICATE_CATEGORY') {
-            toast.error(error.message)
+          if ((error as {code?: string; message?: string}).code === 'DUPLICATE_CATEGORY') {
+            toast.error((error as {message?: string}).message || 'Duplicate category')
           } else {
             toast.error('Failed to add category')
           }
@@ -207,14 +214,14 @@ export function CategoriesPage() {
            budget_period: budgetPeriod,
            is_active: true,
            parent_id: selectedParentCategory
-         } as any
+         } as Omit<Category, 'id' | 'created_at' | 'updated_at'>
         
         const { data, error } = await categoriesService.addCategory(subCategoryData)
         
         if (error) {
           console.error('Error adding sub-category:', error)
-          if (error.code === 'DUPLICATE_CATEGORY') {
-            toast.error(error.message)
+          if ((error as {code?: string; message?: string}).code === 'DUPLICATE_CATEGORY') {
+            toast.error((error as {message?: string}).message || 'Duplicate category')
           } else {
             toast.error('Failed to add sub-category')
           }
@@ -349,7 +356,7 @@ export function CategoriesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {categories
-                           .filter(cat => !(cat as any).parent_id) // Only show main categories
+                           .filter(cat => !cat.parent_id) // Only show main categories
                            .map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.name}
@@ -474,7 +481,7 @@ export function CategoriesPage() {
                      <div>
                        <div className="flex items-center gap-2">
                          <h3 className="font-semibold text-sm">{category.name}</h3>
-                         {(category as any).category_type === 'subcategory' && (
+                         {category.parent_id && (
                            <Badge variant="secondary" className="text-xs px-1 py-0">Sub</Badge>
                          )}
                        </div>

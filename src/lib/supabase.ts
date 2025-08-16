@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
 
+console.log('[SUPABASE DEBUG] Configuration:')
+console.log('[SUPABASE DEBUG] URL:', supabaseUrl)
+console.log('[SUPABASE DEBUG] Key configured:', supabaseAnonKey !== 'placeholder-key')
+console.log('[SUPABASE DEBUG] Is configured:', supabaseUrl !== 'https://placeholder.supabase.co' && supabaseAnonKey !== 'placeholder-key')
+
 // Create a mock client if environment variables are not set
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -14,7 +19,7 @@ export const isSupabaseConfigured = () => {
 // Test Supabase connection
 export const testSupabaseConnection = async () => {
   try {
-    const { data: _data, error } = await supabase.from('profiles').select('count').limit(1)
+    const { error } = await supabase.from('profiles').select('count').limit(1)
     if (error) {
       console.error('Supabase connection test failed:', error)
       return false
@@ -22,7 +27,7 @@ export const testSupabaseConnection = async () => {
     console.log('Supabase connection test successful')
     return true
   } catch (error) {
-    console.error('Supabase connection test error:', error)
+    console.error('Supabase connection test error:', error instanceof Error ? error.message : String(error))
     return false
   }
 }

@@ -34,8 +34,13 @@ export const authService = {
     } catch (error: unknown) {
       // Handle auth session errors gracefully
       const errorMessage = error instanceof Error ? error.message : String(error)
-      if (errorMessage.includes('Auth session missing') || errorMessage.includes('session_not_found')) {
-        // Treat as successful signout if session is already missing
+      if (errorMessage.includes('Auth session missing') || 
+          errorMessage.includes('session_not_found') ||
+          errorMessage.includes('AuthSessionMissingError') ||
+          errorMessage.includes('403') ||
+          errorMessage.includes('Forbidden')) {
+        // Treat as successful signout if session is already missing or forbidden
+        console.warn('Auth session already invalid, treating as successful signout:', errorMessage)
         return { error: null }
       }
       return { error: error instanceof Error ? error : new Error(String(error)) }
@@ -49,16 +54,27 @@ export const authService = {
     try {
       const { data: { user }, error } = await supabase.auth.getUser()
       if (error) {
-        // Handle refresh token errors gracefully
-        if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
-          console.warn('Refresh token invalid, user needs to sign in again')
-          await supabase.auth.signOut()
+        // Handle various auth session errors gracefully
+        if (error.message.includes('refresh_token_not_found') || 
+            error.message.includes('Invalid Refresh Token') ||
+            error.message.includes('Auth session missing') ||
+            error.message.includes('session_not_found')) {
+          console.warn('Auth session invalid, user needs to sign in again:', error.message)
+          // Don't call signOut() here to avoid infinite loops
           return null
         }
         throw error
       }
       return user
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      // Handle AuthSessionMissingError specifically
+      if (errorMessage.includes('Auth session missing') || 
+          errorMessage.includes('session_not_found') ||
+          errorMessage.includes('AuthSessionMissingError')) {
+        console.warn('Auth session missing, treating as signed out')
+        return null
+      }
       console.warn('Error getting current user:', error)
       return null
     }
@@ -84,12 +100,22 @@ export const authService = {
 export const transactionService = {
   // Get all transactions for the current user
   async getTransactions(): Promise<{ data: Transaction[] | null; error: Error | null }> {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false })
-    
-    return { data, error }
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false })
+      
+      if (error) {
+        console.error('Database error fetching transactions:', error)
+        return { data: null, error: new Error(`Failed to fetch transactions: ${error.message}`) }
+      }
+      
+      return { data, error: null }
+    } catch (error) {
+      console.error('Network error fetching transactions:', error)
+      return { data: null, error: new Error(`Failed to fetch transactions: ${error instanceof Error ? error.message : 'Network error'}`) }
+    }
   },
 
   // Add a new transaction

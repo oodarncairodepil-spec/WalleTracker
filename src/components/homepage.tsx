@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
-import { Wallet, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
+import { Wallet, AlertCircle } from 'lucide-react'
 import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
-import type { Transaction, Fund } from '../lib/supabase'
+import type { Transaction } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
 
@@ -17,49 +17,57 @@ interface CategoryBudget {
   remaining: number
 }
 
+// Predefined budgets for categories (in a real app, this would be user-configurable)
+const defaultBudgets: Record<string, number> = {
+  'Food & Dining': 500,
+  'Transportation': 200,
+  'Shopping': 300,
+  'Entertainment': 150,
+  'Bills & Utilities': 400,
+  'Healthcare': 200,
+  'Education': 100,
+  'Travel': 250,
+  'Other': 100
+}
+
 export function Homepage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [totalBalance, setTotalBalance] = useState(0)
   const [unpaidExpenses, setUnpaidExpenses] = useState<Transaction[]>([])
   const [unpaidTotal, setUnpaidTotal] = useState(0)
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Predefined budgets for categories (in a real app, this would be user-configurable)
-  const defaultBudgets: Record<string, number> = {
-    'Food & Dining': 500,
-    'Transportation': 200,
-    'Shopping': 300,
-    'Entertainment': 150,
-    'Bills & Utilities': 400,
-    'Healthcare': 200,
-    'Education': 100,
-    'Travel': 250,
-    'Other': 100
-  }
+  console.log('[HOMEPAGE DEBUG] Component render - user:', user ? 'EXISTS' : 'NULL', 'authLoading:', authLoading, 'loading:', loading)
 
-  useEffect(() => {
-    if (user) {
-      loadDashboardData()
+  const loadDashboardData = useCallback(async () => {
+    console.log('[HOMEPAGE DEBUG] loadDashboardData called - user:', user ? 'EXISTS' : 'NULL')
+    if (!user) {
+      console.log('[HOMEPAGE DEBUG] No user, returning early')
+      return
     }
-  }, [user])
-
-  const loadDashboardData = async () => {
+    
     try {
+      console.log('[HOMEPAGE DEBUG] Starting to load dashboard data, setting loading to true')
       setLoading(true)
       
       // Load total balance from all funds
+      console.log('[HOMEPAGE DEBUG] Loading total balance...')
       const balance = await fundsService.getTotalBalance()
+      console.log('[HOMEPAGE DEBUG] Total balance loaded:', balance)
       setTotalBalance(balance)
       
       // Load unpaid expenses
+      console.log('[HOMEPAGE DEBUG] Loading unpaid expenses...')
       const unpaid = await transactionService.getUnpaidExpenses()
+      console.log('[HOMEPAGE DEBUG] Unpaid expenses loaded:', unpaid)
       setUnpaidExpenses(unpaid)
       
       const unpaidAmount = await transactionService.getUnpaidExpensesTotal()
       setUnpaidTotal(unpaidAmount)
       
       // Load category totals and calculate budgets
+      console.log('[HOMEPAGE DEBUG] Loading category budgets...')
       const categoryTotals = await transactionService.getCategoryTotals()
       const budgets: CategoryBudget[] = Object.entries(defaultBudgets).map(([category, budget]) => {
         const spent = categoryTotals[category] || 0
@@ -70,20 +78,34 @@ export function Homepage() {
           remaining: budget - spent
         }
       })
+      console.log('[HOMEPAGE DEBUG] Category budgets loaded:', budgets.length, 'items')
       
       setCategoryBudgets(budgets)
     } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      console.error('[HOMEPAGE DEBUG] Error loading dashboard data:', error)
     } finally {
+      console.log('[HOMEPAGE DEBUG] Dashboard data loading complete, setting loading to false')
       setLoading(false)
     }
-  }
+  }, [user])
+
+  useEffect(() => {
+    console.log('[HOMEPAGE DEBUG] useEffect triggered - user:', user ? 'EXISTS' : 'NULL', 'authLoading:', authLoading)
+    if (user) {
+      console.log('[HOMEPAGE DEBUG] User exists, calling loadDashboardData')
+      loadDashboardData()
+    } else if (!authLoading) {
+      console.log('[HOMEPAGE DEBUG] No user and auth not loading, setting loading to false')
+      // If no user and auth is not loading, set loading to false
+      setLoading(false)
+    }
+  }, [user, authLoading, loadDashboardData])
 
   const formatCurrency = (amount: number) => {
     return formatIDR(amount)
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="space-y-6 pb-24">
         {/* Header */}
