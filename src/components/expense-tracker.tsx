@@ -7,14 +7,17 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Separator } from "./ui/separator";
 import { toast } from "sonner";
 import { Wallet, Plus, TrendingUp, TrendingDown, Filter, Trash2, Calendar } from "lucide-react";
 import { transactionService } from "../lib/supabase-service";
+import { categoriesService } from "../services/categories-service";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../contexts/auth-context";
+import { formatIDR } from "../lib/utils";
+import type { Category } from "../lib/supabase";
 
 interface Transaction {
   id: string;
@@ -25,31 +28,33 @@ interface Transaction {
   date: string;
 }
 
-const categories = {
+// Fallback categories if database is not available
+const fallbackCategories = {
   expense: [
-    { value: 'food', label: '🍔 Food & Dining', emoji: '🍔' },
-    { value: 'transport', label: '🚗 Transportation', emoji: '🚗' },
-    { value: 'shopping', label: '🛍️ Shopping', emoji: '🛍️' },
-    { value: 'entertainment', label: '🎬 Entertainment', emoji: '🎬' },
-    { value: 'bills', label: '💡 Bills & Utilities', emoji: '💡' },
-    { value: 'health', label: '🏥 Healthcare', emoji: '🏥' },
-    { value: 'education', label: '📚 Education', emoji: '📚' },
-    { value: 'travel', label: '✈️ Travel', emoji: '✈️' },
-    { value: 'other', label: '📝 Other', emoji: '📝' },
+    { value: 'food', label: 'Food & Dining' },
+    { value: 'transport', label: 'Transportation' },
+    { value: 'shopping', label: 'Shopping' },
+    { value: 'entertainment', label: 'Entertainment' },
+    { value: 'bills', label: 'Bills & Utilities' },
+    { value: 'health', label: 'Healthcare' },
+    { value: 'education', label: 'Education' },
+    { value: 'travel', label: 'Travel' },
+    { value: 'other', label: 'Other' },
   ],
   income: [
-    { value: 'salary', label: '💰 Salary', emoji: '💰' },
-    { value: 'freelance', label: '💼 Freelance', emoji: '💼' },
-    { value: 'business', label: '🏢 Business', emoji: '🏢' },
-    { value: 'investment', label: '📈 Investment', emoji: '📈' },
-    { value: 'gift', label: '🎁 Gift', emoji: '🎁' },
-    { value: 'other', label: '📝 Other', emoji: '📝' },
+    { value: 'salary', label: 'Salary' },
+    { value: 'freelance', label: 'Freelance' },
+    { value: 'business', label: 'Business' },
+    { value: 'investment', label: 'Investment' },
+    { value: 'gift', label: 'Gift' },
+    { value: 'other', label: 'Other' },
   ],
 };
 
 export function ExpenseTracker() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
@@ -59,10 +64,11 @@ export function ExpenseTracker() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Load transactions from Supabase on mount
+  // Load transactions and categories from Supabase on mount
   useEffect(() => {
     if (user && isSupabaseConfigured()) {
       loadTransactions();
+      loadCategories();
     } else {
       // Fallback to localStorage if not authenticated or Supabase not configured
       const saved = localStorage.getItem('walletracker-transactions');
@@ -102,24 +108,87 @@ export function ExpenseTracker() {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await categoriesService.getCategories(user?.id || '');
+      if (error) {
+        console.error('Error loading categories:', error);
+        // Use fallback categories
+        const fallbackCategoriesList: Category[] = [
+          ...fallbackCategories.expense.map((cat, index) => ({
+          id: `fallback-expense-${index}`,
+          user_id: user?.id || '',
+          name: cat.label,
+          type: 'expense' as const,
+          budget_amount: 0,
+          budget_period: 'monthly' as const,
+          is_active: true
+        })),
+        ...fallbackCategories.income.map((cat, index) => ({
+          id: `fallback-income-${index}`,
+          user_id: user?.id || '',
+          name: cat.label,
+          type: 'income' as const,
+          budget_amount: 0,
+          budget_period: 'monthly' as const,
+          is_active: true
+        }))
+        ];
+        setCategories(fallbackCategoriesList);
+      } else {
+        setCategories(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      // Use fallback categories
+      const fallbackCategoriesList: Category[] = [
+        ...fallbackCategories.expense.map((cat, index) => ({
+          id: `fallback-expense-${index}`,
+          user_id: user?.id || '',
+          name: cat.label,
+          type: 'expense' as const,
+          budget_amount: 0,
+          budget_period: 'monthly' as const,
+          is_active: true
+        })),
+        ...fallbackCategories.income.map((cat, index) => ({
+          id: `fallback-income-${index}`,
+          user_id: user?.id || '',
+          name: cat.label,
+          type: 'income' as const,
+          budget_amount: 0,
+          budget_period: 'monthly' as const,
+          is_active: true
+        }))
+      ];
+      setCategories(fallbackCategoriesList);
+    }
+  };
+
+  // Helper function to get categories by type
+  const getCategoriesByType = (categoryType: 'income' | 'expense') => {
+    return categories.filter(cat => cat.type === categoryType);
+  };
+
   const addTransaction = async () => {
     if (!description.trim() || !amount || !category) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    const numAmount = parseFloat(amount);
-    if (numAmount <= 0) {
-      toast.error('Amount must be greater than 0');
+    const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      toast.error('Please enter a valid amount');
       return;
     }
 
     const transactionData = {
-      description: description.trim(),
+      description,
       amount: type === 'expense' ? -Math.abs(numAmount) : Math.abs(numAmount),
       category,
       type,
       date: new Date().toISOString(),
+      status: 'paid' as const,
     };
 
     if (user && isSupabaseConfigured()) {
@@ -200,22 +269,14 @@ export function ExpenseTracker() {
   const balance = income - expenses;
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return formatIDR(amount);
   };
 
-  const getCategoryEmoji = (categoryValue: string, transactionType: 'income' | 'expense') => {
-    const categoryList = categories[transactionType];
-    const category = categoryList.find(c => c.value === categoryValue);
-    return category?.emoji || '📝';
-  };
 
-  const getCategoryLabel = (categoryValue: string, transactionType: 'income' | 'expense') => {
-    const categoryList = categories[transactionType];
-    const category = categoryList.find(c => c.value === categoryValue);
-    return category?.label || 'Other';
+
+  const getCategoryLabel = (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    return category?.name || 'Other';
   };
 
   if (loading) {
@@ -295,6 +356,9 @@ export function ExpenseTracker() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add New Transaction</DialogTitle>
+            <DialogDescription>
+              Fill in the details to add a new transaction to your records.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -310,11 +374,17 @@ export function ExpenseTracker() {
               <Label htmlFor="amount">Amount</Label>
               <Input
                 id="amount"
-                type="number"
-                placeholder="0.00"
-                step="0.01"
+                type="text"
+                placeholder="Enter amount"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmount(e.target.value)
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value.replace(/[^0-9]/g, '')
+                  const formatted = value ? parseInt(value).toLocaleString('id-ID') : ''
+                  setAmount(formatted)
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -351,9 +421,9 @@ export function ExpenseTracker() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories[type].map((cat) => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
+                  {getCategoriesByType(type).map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -385,14 +455,9 @@ export function ExpenseTracker() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {categories.expense.map((cat) => (
-                    <SelectItem key={`expense-${cat.value}`} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                  {categories.income.map((cat) => (
-                    <SelectItem key={`income-${cat.value}`} value={cat.value}>
-                      {cat.label}
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -462,14 +527,12 @@ export function ExpenseTracker() {
                 <TableBody>
                   {filteredTransactions.map((transaction) => (
                     <TableRow key={transaction.id} className="hover:bg-muted/50">
-                      <TableCell className="text-xl">
-                        {getCategoryEmoji(transaction.category, transaction.type)}
-                      </TableCell>
+
                       <TableCell className="font-medium">
                         {transaction.description}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {getCategoryLabel(transaction.category, transaction.type)}
+                        {getCategoryLabel(transaction.category)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(transaction.date).toLocaleDateString('en-US', {

@@ -46,14 +46,36 @@ export const authService = {
 
   // Get current user
   async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error) {
+        // Handle refresh token errors gracefully
+        if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
+          console.warn('Refresh token invalid, user needs to sign in again')
+          await supabase.auth.signOut()
+          return null
+        }
+        throw error
+      }
+      return user
+    } catch (error) {
+      console.warn('Error getting current user:', error)
+      return null
+    }
   },
 
   // Listen to auth changes
   onAuthStateChange(callback: (user: User | null) => void) {
     return supabase.auth.onAuthStateChange((event, session) => {
-      callback(session?.user ?? null)
+      // Handle auth errors gracefully
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.warn('Token refresh failed, signing out user')
+      }
+      if (event === 'SIGNED_OUT' || !session) {
+        callback(null)
+      } else {
+        callback(session.user)
+      }
     })
   },
 }

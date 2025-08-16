@@ -28,16 +28,73 @@ export const testSupabaseConnection = async () => {
 }
 
 // Database types
+export interface Fund {
+  id: string
+  user_id: string
+  name: string
+  balance: number
+  image_url?: string
+  status?: string
+  is_default?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Transaction {
   id: string
   amount: number
   description: string
   category: string
+  category_id?: string
   type: 'income' | 'expense'
   date: string
+  source_of_funds_id?: string
+  status: 'paid' | 'unpaid'
+  note?: string
   created_at?: string
   updated_at?: string
   user_id?: string
+  fund?: Fund // For joined queries
+  category_data?: Category // For joined queries
+}
+
+export interface Category {
+  id: string
+  user_id: string
+  name: string
+  type: 'income' | 'expense'
+  emoji?: string
+  budget_amount: number
+  budget_period: 'monthly' | 'weekly' | '10days'
+  is_active: boolean
+  parent_id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// New interfaces for separate tables approach
+export interface MainCategory {
+  id: string
+  user_id: string
+  name: string
+  type: 'income' | 'expense'
+  emoji?: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Subcategory {
+  id: string
+  user_id: string
+  main_category_id: string
+  name: string
+  emoji?: string
+  budget_amount: number
+  budget_period: 'monthly' | 'weekly' | 'yearly'
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export interface Profile {

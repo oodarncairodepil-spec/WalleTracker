@@ -8,21 +8,37 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create funds table
+CREATE TABLE IF NOT EXISTS funds (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  balance BIGINT DEFAULT 0,
+  image_url TEXT,
+  status TEXT DEFAULT 'Active',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create transactions table
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  amount DECIMAL(10,2) NOT NULL,
+  amount BIGINT NOT NULL,
   description TEXT NOT NULL,
   category TEXT NOT NULL,
   type TEXT CHECK (type IN ('income', 'expense')) NOT NULL,
   date DATE NOT NULL,
+  source_of_funds_id UUID REFERENCES funds(id) ON DELETE SET NULL,
+  status TEXT CHECK (status IN ('paid', 'unpaid')) DEFAULT 'paid' NOT NULL,
+  note TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE funds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for profiles
@@ -34,6 +50,19 @@ CREATE POLICY "Users can update own profile" ON profiles
 
 CREATE POLICY "Users can insert own profile" ON profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Create policies for funds
+CREATE POLICY "Users can view own funds" ON funds
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own funds" ON funds
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own funds" ON funds
+  FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own funds" ON funds
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- Create policies for transactions
 CREATE POLICY "Users can view own transactions" ON transactions
@@ -75,6 +104,10 @@ $$ LANGUAGE plpgsql;
 -- Create triggers for updated_at
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_funds_updated_at
+  BEFORE UPDATE ON funds
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 CREATE TRIGGER update_transactions_updated_at

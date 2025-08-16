@@ -24,6 +24,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authService.getCurrentUser().then((user) => {
       setUser(user)
       setLoading(false)
+    }).catch((error) => {
+      console.warn('Auth initialization error:', error)
+      setUser(null)
+      setLoading(false)
     })
 
     // Listen for auth changes
