@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, Settings, ChevronDown } from 'lucide-react'
+import { LogOut, Settings, ChevronDown, Upload, Image } from 'lucide-react'
 import { useAuth } from '../contexts/auth-context'
 import { cn } from '../lib/utils'
+// import { BulkOrder } from './bulk-order' // Component doesn't exist
+import { DataParser } from './data-parser'
 
 export function AvatarDropdown() {
   const { user, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
+  // const [isBulkOrderOpen, setIsBulkOrderOpen] = useState(false) // Component doesn't exist
+  const [isDataParserOpen, setIsDataParserOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
@@ -94,6 +98,27 @@ export function AvatarDropdown() {
               Settings
             </button>
 
+            {/* Bulk Order - Disabled until component is created */}
+            <button
+              className="w-full flex items-center px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+              disabled
+            >
+              <Upload className="w-4 h-4 mr-3 text-gray-400" />
+              Bulk Order (Coming Soon)
+            </button>
+
+            {/* Data Parser */}
+            <button
+              className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => {
+                setIsOpen(false)
+                setIsDataParserOpen(true)
+              }}
+            >
+              <Image className="w-4 h-4 mr-3 text-gray-400" />
+              Data Parser
+            </button>
+
             {/* Divider */}
             <div className="border-t border-gray-100 my-1" />
 
@@ -108,6 +133,18 @@ export function AvatarDropdown() {
           </div>
         </div>
       )}
+      
+      {/* Bulk Order Dialog - Component doesn't exist */}
+      {/* <BulkOrder 
+        isOpen={isBulkOrderOpen} 
+        onClose={() => setIsBulkOrderOpen(false)} 
+      /> */}
+      
+      {/* Data Parser Dialog */}
+      <DataParser 
+        isOpen={isDataParserOpen} 
+        onClose={() => setIsDataParserOpen(false)} 
+      />
     </div>
   )
 }

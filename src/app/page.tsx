@@ -5,6 +5,7 @@ import { MainApp } from "@/components/main-app";
 import { AuthForm } from "@/components/auth-form";
 import { AvatarDropdown } from "@/components/avatar-dropdown";
 import { useAuth } from "@/contexts/auth-context";
+// import { NavigationProvider } from "@/contexts/navigation-context"; // Component doesn't exist
 
 export default function Home() {
   const { user, loading } = useAuth();

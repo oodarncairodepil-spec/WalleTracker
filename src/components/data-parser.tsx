@@ -13,17 +13,10 @@ import { Upload, FileImage, Trash2, Eye, Download, RefreshCw } from 'lucide-reac
 import { openaiService, type ParsedImageRecord } from '../services/openai-service'
 import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
-
-interface Transaction {
-  date: string
-  description: string
-  amount: number
-  type: 'income' | 'expense'
-  category: string
-}
+import type { ExtractedTransaction } from '../lib/supabase'
 
 interface ExtractedData {
-  transactions: Transaction[]
+  transactions: ExtractedTransaction[]
   summary: {
     total_transactions: number
     total_income: number
@@ -35,14 +28,14 @@ interface ExtractedData {
 interface DataParserProps {
   isOpen: boolean
   onClose: () => void
-  onTransactionsExtracted?: (transactions: Transaction[]) => void
+  onTransactionsExtracted?: (transactions: ExtractedTransaction[]) => void
 }
 
 export function DataParser({ isOpen, onClose, onTransactionsExtracted }: DataParserProps) {
   const { user } = useAuth()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null)
+  const [extractedData, setExtractedData] = useState<ExtractedTransaction[] | null>(null)
   const [parsingHistory, setParsingHistory] = useState<ParsedImageRecord[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [selectedRecord, setSelectedRecord] = useState<ParsedImageRecord | null>(null)
@@ -95,7 +88,7 @@ export function DataParser({ isOpen, onClose, onTransactionsExtracted }: DataPar
       
       if (result.success && result.data) {
         setExtractedData(result.data)
-        toast.success(`Successfully extracted ${result.data.transactions?.length || 0} transactions`)
+        toast.success(`Successfully extracted ${result.data.length || 0} transactions`)
         
         // Refresh history
         await loadParsingHistory()
@@ -119,8 +112,8 @@ export function DataParser({ isOpen, onClose, onTransactionsExtracted }: DataPar
   }
 
   const handleUseTransactions = () => {
-    if (extractedData?.transactions && onTransactionsExtracted) {
-      onTransactionsExtracted(extractedData.transactions)
+    if (extractedData && onTransactionsExtracted) {
+      onTransactionsExtracted(extractedData)
       toast.success('Transactions added to your expense tracker')
       onClose()
     }
@@ -233,24 +226,24 @@ export function DataParser({ isOpen, onClose, onTransactionsExtracted }: DataPar
                   {/* Summary */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center p-3 bg-muted rounded-md">
-                      <div className="text-2xl font-bold">{extractedData.summary.total_transactions}</div>
+                      <div className="text-2xl font-bold">{extractedData.length}</div>
                       <div className="text-sm text-muted-foreground">Transactions</div>
                     </div>
                     <div className="text-center p-3 bg-green-50 rounded-md">
                       <div className="text-2xl font-bold text-green-600">
-                        {formatIDR(extractedData.summary.total_income)}
+                        {formatIDR(extractedData.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0))}
                       </div>
                       <div className="text-sm text-muted-foreground">Income</div>
                     </div>
                     <div className="text-center p-3 bg-red-50 rounded-md">
                       <div className="text-2xl font-bold text-red-600">
-                        {formatIDR(extractedData.summary.total_expenses)}
+                        {formatIDR(extractedData.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0))}
                       </div>
                       <div className="text-sm text-muted-foreground">Expenses</div>
                     </div>
                     <div className="text-center p-3 bg-blue-50 rounded-md">
                       <div className="text-2xl font-bold text-blue-600">
-                        {formatIDR(extractedData.summary.total_income - extractedData.summary.total_expenses)}
+                        {formatIDR(extractedData.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -Math.abs(t.amount)), 0))}
                       </div>
                       <div className="text-sm text-muted-foreground">Net</div>
                     </div>
@@ -258,9 +251,9 @@ export function DataParser({ isOpen, onClose, onTransactionsExtracted }: DataPar
 
                   {/* Transactions List */}
                   <div className="space-y-2">
-                    <h4 className="font-medium">Transactions ({extractedData.transactions.length})</h4>
+                    <h4 className="font-medium">Transactions ({extractedData.length})</h4>
                     <div className="max-h-60 overflow-y-auto space-y-2">
-                      {extractedData.transactions.map((transaction, index) => (
+                      {extractedData.map((transaction, index) => (
                         <div key={index} className="flex items-center justify-between p-3 border rounded-md">
                           <div className="flex-1">
                             <div className="font-medium">{transaction.description}</div>
@@ -331,11 +324,11 @@ export function DataParser({ isOpen, onClose, onTransactionsExtracted }: DataPar
                               {record.error_message}
                             </div>
                           )}
-                          {record.status === 'success' && record.extracted_json?.summary && (
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {record.extracted_json.summary.total_transactions} transactions extracted
-                            </div>
-                          )}
+                          {record.status === 'success' && record.extracted_json && (
+                             <div className="text-sm text-muted-foreground mt-1">
+                               {record.extracted_json.length} transactions extracted
+                             </div>
+                           )}
                         </div>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" onClick={() => viewHistoryDetails(record)}>

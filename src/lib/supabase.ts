@@ -111,14 +111,43 @@ export interface Profile {
   updated_at?: string
 }
 
+export interface OpenAIResponse {
+  id: string
+  object: string
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    message: {
+      role: string
+      content: string
+    }
+    finish_reason: string
+  }>
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
+export interface ExtractedTransaction {
+  amount: number
+  description: string
+  category: string
+  type: 'income' | 'expense'
+  date: string
+  note?: string
+}
+
 export interface ParsedImageRecord {
   id: string
   user_id: string
   record_id: string
   timestamp: string // ISO string format
   image_data: string // base64 encoded image
-  openai_response?: any
-  extracted_json?: any
+  openai_response?: OpenAIResponse
+  extracted_json?: ExtractedTransaction[]
   status: 'success' | 'error'
   error_message?: string
   created_at?: string

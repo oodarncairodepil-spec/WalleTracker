@@ -55,6 +55,7 @@ export async function migrateLocalDataToSupabase(): Promise<{ success: boolean; 
   for (const transaction of localTransactions) {
     try {
       // Remove local-only fields and prepare for Supabase
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { created_at, updated_at, user_id, ...cleanTransaction } = transaction
       
       const { error } = await transactionService.addTransaction(cleanTransaction)

@@ -1,25 +1,5 @@
-interface OpenAIResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string;
-    };
-    finish_reason: string;
-  }>;
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
 import { supabase } from '../lib/supabase'
-import type { ParsedImageRecord } from '../lib/supabase'
+import type { ParsedImageRecord, ExtractedTransaction, OpenAIResponse } from '../lib/supabase'
 
 class OpenAIService {
   private apiKey: string;
@@ -47,7 +27,7 @@ class OpenAIService {
 
   async extractTransactionsFromImage(imageFile: File): Promise<{
     success: boolean;
-    data?: any;
+    data?: ExtractedTransaction[];
     record: ParsedImageRecord;
   }> {
     const recordId = `parse_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -163,8 +143,8 @@ If no transactions are found, return an empty transactions array. Be as accurate
         record_id: recordId,
         timestamp: new Date().toISOString(),
         image_data: await this.fileToBase64(imageFile),
-        openai_response: null,
-        extracted_json: null,
+        openai_response: undefined,
+        extracted_json: undefined,
         status: 'error' as const,
         error_message: error instanceof Error ? error.message : 'Unknown error'
       };
