@@ -110,3 +110,17 @@ export interface Profile {
   created_at?: string
   updated_at?: string
 }
+
+export interface ParsedImageRecord {
+  id: string
+  user_id: string
+  record_id: string
+  timestamp: string // ISO string format
+  image_data: string // base64 encoded image
+  openai_response?: any
+  extracted_json?: any
+  status: 'success' | 'error'
+  error_message?: string
+  created_at?: string
+  updated_at?: string
+}
