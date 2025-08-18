@@ -6,8 +6,8 @@ export interface ParsedJSONRecord {
   record_id: string
   timestamp: string
   image_data: string // Will store JSON input as base64 for compatibility
-  openai_response?: any // Will store original JSON input
-  extracted_json: any // Will store extracted data
+  openai_response?: Record<string, unknown> // Will store original JSON input
+  extracted_json: Record<string, unknown> // Will store extracted data
   status: 'success' | 'error' | 'converted'
   error_message?: string
 }

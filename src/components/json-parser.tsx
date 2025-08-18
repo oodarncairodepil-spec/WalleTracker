@@ -241,7 +241,7 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
         record_id: crypto.randomUUID(),
         image_data: btoa(jsonInput),
         openai_response: { original_input: jsonInput },
-        extracted_json: transactions,
+        extracted_json: transactions as Record<string, unknown>,
         status: 'success',
         timestamp: new Date().toISOString()
       }

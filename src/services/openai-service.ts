@@ -103,11 +103,11 @@ If no transactions are found, return an empty transactions array. Be as accurate
 
       // Try to parse the JSON response
       let extractedData;
-      let isValidResponse = false;
+      // Track if response is valid
       
       try {
         // Remove any markdown code block formatting and clean the content
-        let cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
+        const cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
         
         // Check if the response looks like it might not be JSON
         if (!cleanContent.startsWith('{') && !cleanContent.startsWith('[')) {
@@ -131,14 +131,15 @@ If no transactions are found, return an empty transactions array. Be as accurate
         }
         
         // Validate each transaction has basic required fields
-        extractedData.transactions.forEach((transaction: any, index: number) => {
+        extractedData.transactions.forEach((transaction: Record<string, unknown>, index: number) => {
           if (typeof transaction !== 'object' || transaction === null) {
             throw new Error(`Transaction at index ${index} is not an object`);
           }
           
           // Ensure amount is a valid number
           if (transaction.amount !== undefined) {
-            const amount = parseFloat(transaction.amount);
+            const amountValue = String(transaction.amount);
+            const amount = parseFloat(amountValue);
             if (isNaN(amount)) {
               throw new Error(`Transaction at index ${index} has invalid amount: "${transaction.amount}"`);
             }
@@ -146,7 +147,7 @@ If no transactions are found, return an empty transactions array. Be as accurate
           }
         });
         
-        isValidResponse = true;
+        // Response is valid
         
       } catch (parseError) {
         console.error('Failed to parse OpenAI response as JSON:', parseError);
