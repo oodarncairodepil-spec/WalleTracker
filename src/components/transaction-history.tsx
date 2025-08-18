@@ -933,10 +933,14 @@ export function TransactionHistory() {
                           setViewingTransaction(transaction)
                           setIsDetailsDialogOpen(true)
                         }
-                        e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                        if (e.currentTarget) {
+                          e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                        }
                       }
                       
-                      e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                      if (e.currentTarget) {
+                        e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                      }
                     }}
                   >
                     <div className="flex justify-between items-center">
@@ -987,10 +991,14 @@ export function TransactionHistory() {
                           setViewingTransaction(transaction)
                           setIsDetailsDialogOpen(true)
                         }
-                        e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                        if (e.currentTarget) {
+                          e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                        }
                       }
                       
-                      e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                      if (e.currentTarget) {
+                        e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                      }
                     }}
                   >
                     <div className="flex justify-between items-start">

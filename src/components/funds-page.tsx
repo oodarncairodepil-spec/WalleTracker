@@ -363,10 +363,14 @@ export function FundsPage() {
                     loadFundTransactions(fund.id)
                     setIsDetailsDialogOpen(true)
                   }
-                  e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                  if (e.currentTarget) {
+                    e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                  }
                 }
                 
-                e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                if (e.currentTarget) {
+                  e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                }
               }}
             >
               <CardHeader className="p-1.5">
