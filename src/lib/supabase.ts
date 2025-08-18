@@ -68,7 +68,6 @@ export interface Category {
   user_id: string
   name: string
   type: 'income' | 'expense'
-  emoji?: string
   budget_amount: number
   budget_period: 'monthly' | 'weekly' | '10days'
   is_active: boolean
@@ -83,7 +82,6 @@ export interface MainCategory {
   user_id: string
   name: string
   type: 'income' | 'expense'
-  emoji?: string
   is_active: boolean
   created_at?: string
   updated_at?: string
@@ -94,7 +92,6 @@ export interface Subcategory {
   user_id: string
   main_category_id: string
   name: string
-  emoji?: string
   budget_amount: number
   budget_period: 'monthly' | 'weekly' | 'yearly'
   is_active: boolean

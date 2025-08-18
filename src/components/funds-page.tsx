@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import { fundsService } from '../services/funds-service'
-import type { Fund } from '../lib/supabase'
+import { transactionService } from '../services/transaction-service'
+import type { Fund, Transaction } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
 
@@ -24,6 +25,9 @@ export function FundsPage() {
   const [editingFund, setEditingFund] = useState<Fund | null>(null)
   const [fundToDelete, setFundToDelete] = useState<Fund | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+  const [viewingFund, setViewingFund] = useState<Fund | null>(null)
+  const [fundTransactions, setFundTransactions] = useState<Transaction[]>([])
   
   // Form state
   const [name, setName] = useState('')
@@ -51,6 +55,20 @@ export function FundsPage() {
       toast.error('Failed to load funds', { duration: 1000 })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadFundTransactions = async (fundId: string) => {
+    try {
+      const transactions = await transactionService.getTransactions()
+      const fundTransactions = transactions
+        .filter(t => t.source_of_funds_id === fundId)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 10) // Last 10 transactions
+      setFundTransactions(fundTransactions)
+    } catch (error) {
+      console.error('Error loading fund transactions:', error)
+      toast.error('Failed to load transactions', { duration: 1000 })
     }
   }
 
@@ -323,7 +341,33 @@ export function FundsPage() {
             <Card 
               key={fund.id} 
               className="cursor-pointer hover:shadow-md transition-shadow border-0 shadow-sm" 
-              onClick={() => handleEdit(fund)}
+              onClick={async () => {
+                setViewingFund(fund)
+                await loadFundTransactions(fund.id)
+                setIsDetailsDialogOpen(true)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                handleEdit(fund)
+              }}
+              onTouchStart={(e) => {
+                const touchStartTime = Date.now()
+                const timeoutId = setTimeout(() => {
+                  handleEdit(fund)
+                }, 500)
+                
+                const handleTouchEnd = () => {
+                  clearTimeout(timeoutId)
+                  if (Date.now() - touchStartTime < 500) {
+                    setViewingFund(fund)
+                    loadFundTransactions(fund.id)
+                    setIsDetailsDialogOpen(true)
+                  }
+                  e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                }
+                
+                e.currentTarget.addEventListener('touchend', handleTouchEnd)
+              }}
             >
               <CardHeader className="p-1.5">
                 <div className="flex items-center justify-between">
@@ -384,6 +428,84 @@ export function FundsPage() {
               Delete
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fund Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Fund Details</DialogTitle>
+          </DialogHeader>
+          {viewingFund && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                {viewingFund.image_url ? (
+                  <Image 
+                    src={viewingFund.image_url} 
+                    alt={viewingFund.name}
+                    width={48}
+                    height={48}
+                    className="w-12 h-12 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                    {viewingFund.name.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-lg">{viewingFund.name}</h3>
+                  <p className="text-2xl font-bold text-gray-900">{formatIDR(viewingFund.balance)}</p>
+                  {viewingFund.is_default && (
+                    <div className="flex items-center space-x-1 mt-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-green-600 font-medium">Default Fund</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-sm font-medium text-gray-600">Status</Label>
+                <p className="text-sm">{viewingFund.status}</p>
+              </div>
+              
+              <div>
+                <Label className="text-sm font-medium text-gray-600 mb-2 block">Recent Transactions (Last 10)</Label>
+                {fundTransactions.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {fundTransactions.map((transaction) => (
+                      <div key={transaction.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                        <div>
+                          <p className="text-sm font-medium">{transaction.category}</p>
+                          <p className="text-xs text-gray-500">{new Date(transaction.date).toLocaleDateString()}</p>
+                        </div>
+                        <p className={`text-sm font-semibold ${
+                          transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {transaction.type === 'income' ? '+' : '-'}{formatIDR(transaction.amount)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">No transactions found for this fund</p>
+                )}
+              </div>
+              
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setIsDetailsDialogOpen(false)
+                  handleEdit(viewingFund)
+                }}>
+                  Edit
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

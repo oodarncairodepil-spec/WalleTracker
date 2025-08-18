@@ -163,8 +163,8 @@ export function Homepage() {
       return subcategory.name
     }
     
-    // Return the categoryId if not found
-    return categoryId
+    // Return a user-friendly fallback instead of UUID
+    return 'Unknown Category'
   }
 
   useEffect(() => {

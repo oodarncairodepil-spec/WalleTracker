@@ -6,7 +6,6 @@ export interface MainCategory {
   user_id: string
   name: string
   type: 'income' | 'expense'
-  emoji?: string
   is_active: boolean
   created_at?: string
   updated_at?: string
@@ -17,7 +16,6 @@ export interface Subcategory {
   user_id: string
   main_category_id: string
   name: string
-  emoji?: string
   budget_amount: number
   budget_period: 'monthly' | 'weekly' | 'yearly'
   is_active: boolean
@@ -36,7 +34,6 @@ export interface CategoryItem {
   user_id: string
   name: string
   type: 'income' | 'expense'
-  emoji?: string
   budget_amount?: number
   budget_period?: 'monthly' | 'weekly' | 'yearly'
   is_active: boolean
@@ -155,7 +152,6 @@ export const categoriesServiceV2 = {
         user_id: item.user_id,
         name: item.subcategory_name || item.main_category_name,
         type: item.category_type,
-        emoji: item.subcategory_emoji || item.main_category_emoji,
         budget_amount: item.budget_amount || 0,
         budget_period: item.budget_period || 'monthly',
         is_active: true,

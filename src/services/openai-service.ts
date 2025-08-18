@@ -28,7 +28,7 @@ class OpenAIService {
   async extractTransactionsFromImage(imageFile: File): Promise<{
     success: boolean;
     data?: ExtractedTransaction[];
-    record: ParsedImageRecord;
+    record: Omit<ParsedImageRecord, 'id' | 'user_id'>;
   }> {
     const recordId = `parse_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -103,19 +103,75 @@ If no transactions are found, return an empty transactions array. Be as accurate
 
       // Try to parse the JSON response
       let extractedData;
+      let isValidResponse = false;
+      
       try {
-        // Remove any markdown code block formatting
-        const cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
+        // Remove any markdown code block formatting and clean the content
+        let cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
+        
+        // Check if the response looks like it might not be JSON
+        if (!cleanContent.startsWith('{') && !cleanContent.startsWith('[')) {
+          throw new Error(`OpenAI returned non-JSON response: "${cleanContent.substring(0, 100)}..."`);
+        }
+        
         extractedData = JSON.parse(cleanContent);
+        
+        // Validate the structure of the response
+        if (typeof extractedData !== 'object' || extractedData === null) {
+          throw new Error('OpenAI response is not a valid object');
+        }
+        
+        // Check if it has the expected structure
+        if (!extractedData.transactions) {
+          throw new Error('OpenAI response missing "transactions" property');
+        }
+        
+        if (!Array.isArray(extractedData.transactions)) {
+          throw new Error('OpenAI response "transactions" is not an array');
+        }
+        
+        // Validate each transaction has basic required fields
+        extractedData.transactions.forEach((transaction: any, index: number) => {
+          if (typeof transaction !== 'object' || transaction === null) {
+            throw new Error(`Transaction at index ${index} is not an object`);
+          }
+          
+          // Ensure amount is a valid number
+          if (transaction.amount !== undefined) {
+            const amount = parseFloat(transaction.amount);
+            if (isNaN(amount)) {
+              throw new Error(`Transaction at index ${index} has invalid amount: "${transaction.amount}"`);
+            }
+            transaction.amount = amount; // Normalize to number
+          }
+        });
+        
+        isValidResponse = true;
+        
       } catch (parseError) {
         console.error('Failed to parse OpenAI response as JSON:', parseError);
-        extractedData = { error: 'Failed to parse response', raw_content: content };
+        
+        // Create error record for parsing failure
+        const errorRecord: Omit<ParsedImageRecord, 'id' | 'user_id'> = {
+          record_id: recordId,
+          timestamp: new Date().toISOString(),
+          image_data: imageData,
+          openai_response: openaiResponse,
+          extracted_json: undefined,
+          status: 'error' as const,
+          error_message: `Failed to parse OpenAI response: ${parseError instanceof Error ? parseError.message : 'Unknown parsing error'}. Raw content: ${content.substring(0, 200)}...`
+        };
+        
+        await this.saveToDatabase(errorRecord);
+        
+        return {
+          success: false,
+          record: errorRecord
+        };
       }
 
       // Create success record
-      const record: ParsedImageRecord = {
-        id: '', // Will be set by database
-        user_id: '', // Will be set when saving to database
+      const record: Omit<ParsedImageRecord, 'id' | 'user_id'> = {
         record_id: recordId,
         timestamp: new Date().toISOString(),
         image_data: imageData,
@@ -129,7 +185,7 @@ If no transactions are found, return an empty transactions array. Be as accurate
 
       return {
         success: true,
-        data: extractedData,
+        data: extractedData.transactions, // Return just the transactions array
         record
       };
 
@@ -137,9 +193,7 @@ If no transactions are found, return an empty transactions array. Be as accurate
       console.error('Error extracting transactions:', error);
       
       // Create error record
-      const errorRecord: ParsedImageRecord = {
-        id: '', // Will be set by database
-        user_id: '', // Will be set when saving to database
+      const errorRecord: Omit<ParsedImageRecord, 'id' | 'user_id'> = {
         record_id: recordId,
         timestamp: new Date().toISOString(),
         image_data: await this.fileToBase64(imageFile),
@@ -172,7 +226,7 @@ If no transactions are found, return an empty transactions array. Be as accurate
     return file.type || 'image/jpeg';
   }
 
-  private async saveToDatabase(record: ParsedImageRecord) {
+  private async saveToDatabase(record: Omit<ParsedImageRecord, 'id' | 'user_id'>) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       

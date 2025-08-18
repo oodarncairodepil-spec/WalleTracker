@@ -48,6 +48,8 @@ export function CategoriesPageV2() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{item: CategoryItem, isSubcategory: boolean} | null>(null)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+  const [viewingCategory, setViewingCategory] = useState<CategoryWithSubcategories | null>(null)
 
   const loadCategories = useCallback(async () => {
     if (!user) return
@@ -375,6 +377,109 @@ export function CategoriesPageV2() {
           </DialogContent>
         </Dialog>
 
+        {/* Category Details Dialog */}
+        <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Category Details</DialogTitle>
+            </DialogHeader>
+            {viewingCategory && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      {viewingCategory.name}
+                      <Badge variant={viewingCategory.type === 'income' ? 'default' : 'secondary'} className={viewingCategory.type === 'income' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}>
+                        {viewingCategory.type}
+                      </Badge>
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {viewingCategory.subcategories?.length || 0} subcategories
+                    </p>
+                  </div>
+                </div>
+                
+                {budgetSummary && (() => {
+                  const categoryBudgets = budgetSummary.categories?.filter(budget => 
+                    viewingCategory.subcategories?.some(sub => sub.id === budget.id)
+                  ) || []
+                  const totalBudget = categoryBudgets.reduce((sum, budget) => sum + budget.budgetAmount, 0)
+                  const totalSpent = categoryBudgets.reduce((sum, budget) => sum + budget.spent, 0)
+                  const totalLeftover = totalBudget - totalSpent
+                  
+                  return totalBudget > 0 ? (
+                    <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Total Budget</Label>
+                        <p className="text-lg font-bold">Rp {totalBudget.toLocaleString('id-ID').replace(/,/g, '.')}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Total Spent</Label>
+                        <p className="text-lg font-bold">Rp {totalSpent.toLocaleString('id-ID').replace(/,/g, '.')}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Remaining</Label>
+                        <p className={`text-lg font-bold ${totalLeftover >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          Rp {totalLeftover.toLocaleString('id-ID').replace(/,/g, '.')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+                
+                <div>
+                  <Label className="text-sm font-medium text-gray-600 mb-2 block">Subcategories</Label>
+                  {viewingCategory.subcategories && viewingCategory.subcategories.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {viewingCategory.subcategories.map((subcategory) => {
+                        const subBudget = budgetSummary?.categories?.find(budget => budget.id === subcategory.id)
+                        const budgetAmount = subBudget?.budgetAmount || subcategory.budget_amount || 0
+                        const spent = subBudget?.spent || 0
+                        const leftover = budgetAmount - spent
+                        
+                        return (
+                          <div key={subcategory.id} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                            <div>
+                              <p className="text-sm font-medium">{subcategory.name}</p>
+                              {budgetAmount > 0 && (
+                                <p className="text-xs text-gray-500">
+                                  Budget: Rp {budgetAmount.toLocaleString('id-ID').replace(/,/g, '.')}
+                                </p>
+                              )}
+                            </div>
+                            {budgetAmount > 0 && (
+                              <div className="text-right">
+                                <p className="text-sm font-medium">Rp {spent.toLocaleString('id-ID').replace(/,/g, '.')}</p>
+                                <p className={`text-xs ${leftover >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {leftover >= 0 ? '+' : ''}Rp {leftover.toLocaleString('id-ID').replace(/,/g, '.')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">No subcategories found</p>
+                  )}
+                </div>
+                
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                    Close
+                  </Button>
+                  <Button onClick={() => {
+                    setIsDetailsDialogOpen(false)
+                    handleEdit(viewingCategory, false)
+                  }}>
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {budgetSummary && (
           <Card>
             <CardContent className="pt-6">
@@ -432,7 +537,33 @@ export function CategoriesPageV2() {
             const totalLeftover = totalBudget - totalSpent
             
             return (
-              <Card key={category.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleEdit(category, false)}>
+              <Card key={category.id} className="cursor-pointer hover:shadow-md transition-shadow" 
+                onClick={() => {
+                  setViewingCategory(category)
+                  setIsDetailsDialogOpen(true)
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  handleEdit(category, false)
+                }}
+                onTouchStart={(e) => {
+                  const touchStartTime = Date.now()
+                  const timeoutId = setTimeout(() => {
+                    handleEdit(category, false)
+                  }, 500)
+                  
+                  const handleTouchEnd = () => {
+                    clearTimeout(timeoutId)
+                    if (Date.now() - touchStartTime < 500) {
+                      setViewingCategory(category)
+                      setIsDetailsDialogOpen(true)
+                    }
+                    e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                  }
+                  
+                  e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                }}
+              >
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div className="flex flex-col gap-1">

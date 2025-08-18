@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Wallet, Plus, TrendingUp, TrendingDown, Filter, Trash2, Calendar } from "lucide-react";
 import { transactionService } from "../lib/supabase-service";
 import { categoriesService } from "../services/categories-service";
+import { categoriesServiceV2, type MainCategory, type Subcategory } from "../services/categories-service-v2";
 import { isSupabaseConfigured } from "../lib/supabase";
 import { useAuth } from "../contexts/auth-context";
 import { formatIDR } from "../lib/utils";
@@ -55,6 +56,8 @@ export function ExpenseTracker() {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [mainCategories, setMainCategories] = useState<MainCategory[]>([]);
+  const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
@@ -69,6 +72,7 @@ export function ExpenseTracker() {
     if (user && isSupabaseConfigured()) {
       loadTransactions();
       loadCategories();
+      loadNewCategories();
     } else {
       // Fallback to localStorage if not authenticated or Supabase not configured
       const saved = localStorage.getItem('walletracker-transactions');
@@ -77,7 +81,7 @@ export function ExpenseTracker() {
       }
       setLoading(false);
     }
-  }, [user]); // loadCategories doesn't depend on props/state, safe to omit
+  }, [user]);
 
   // Save to localStorage as backup when transactions change
   useEffect(() => {
@@ -105,6 +109,27 @@ export function ExpenseTracker() {
       toast.error('Failed to load transactions', { duration: 1000 });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadNewCategories = async () => {
+    try {
+      const { data: mainCategoriesData, error: mainError } = await categoriesServiceV2.getMainCategories(user?.id || '');
+      const { data: subcategoriesData, error: subError } = await categoriesServiceV2.getAllSubcategories(user?.id || '');
+      
+      if (mainError) {
+        console.error('Error loading main categories:', mainError);
+      } else {
+        setMainCategories(mainCategoriesData || []);
+      }
+      
+      if (subError) {
+        console.error('Error loading subcategories:', subError);
+      } else {
+        setAllSubcategories(subcategoriesData || []);
+      }
+    } catch (error) {
+      console.error('Error loading new categories:', error);
     }
   };
 
@@ -258,12 +283,18 @@ export function ExpenseTracker() {
     return categoryMatch && typeMatch;
   });
 
+  // Internal transfer category IDs to exclude from calculations
+  const internalTransferCategoryIds = [
+    '90eae994-67f1-426e-a8bc-ff6e2dbab51c', // Other - Internal Transfer
+    'ece52746-3984-4a1e-b8a4-dadfd916612e'  // Salary - Internal Transfer
+  ];
+
   const income = transactions
-    .filter(t => t.amount > 0)
+    .filter(t => t.amount > 0 && !internalTransferCategoryIds.includes(t.category))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const expenses = Math.abs(transactions
-    .filter(t => t.amount < 0)
+    .filter(t => t.amount < 0 && !internalTransferCategoryIds.includes(t.category))
     .reduce((sum, t) => sum + t.amount, 0));
 
   const balance = income - expenses;
@@ -275,8 +306,25 @@ export function ExpenseTracker() {
 
 
   const getCategoryLabel = (categoryId: string) => {
+    // First check old categories for backward compatibility
     const category = categories.find(c => c.id === categoryId);
-    return category?.name || 'Other';
+    if (category) {
+      return category.name;
+    }
+    
+    // Then check main categories
+    const mainCategory = mainCategories.find(c => c.id === categoryId);
+    if (mainCategory) {
+      return mainCategory.name;
+    }
+    
+    // Finally check subcategories
+    const subcategory = allSubcategories.find(c => c.id === categoryId);
+    if (subcategory) {
+      return subcategory.name;
+    }
+    
+    return 'Unknown Category';
   };
 
   if (loading) {

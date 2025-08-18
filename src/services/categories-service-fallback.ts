@@ -8,7 +8,6 @@ export interface CategoryWithSubcategories {
   id: string
   name: string
   type: 'income' | 'expense'
-  emoji?: string
   is_active: boolean
   subcategories: Category[]
 }
@@ -17,7 +16,6 @@ export interface CategoryItem {
   id: string
   name: string
   type: 'income' | 'expense'
-  emoji?: string
   is_active: boolean
   isSubcategory: boolean
   parentId?: string
@@ -109,7 +107,6 @@ const result: CategoryItem[] = [] as CategoryItem[]
            id: category.id,
            name: category.name,
            type: category.type,
-           emoji: category.emoji,
            is_active: category.is_active,
            isSubcategory: false,
            parentId: undefined,
@@ -124,7 +121,6 @@ const result: CategoryItem[] = [] as CategoryItem[]
            id: category.id,
            name: category.name,
            type: category.type,
-           emoji: category.emoji,
            is_active: category.is_active,
            isSubcategory: true,
            parentId: category.main_category_id,
@@ -303,10 +299,16 @@ const result: CategoryItem[] = [] as CategoryItem[]
 
       if (transactionsError) throw transactionsError
 
+      // Internal transfer category IDs to exclude from calculations
+      const internalTransferCategoryIds = [
+        '90eae994-67f1-426e-a8bc-ff6e2dbab51c', // Other - Internal Transfer
+        'ece52746-3984-4a1e-b8a4-dadfd916612e'  // Salary - Internal Transfer
+      ]
+
       // Calculate spending by category
       const spendingByCategory: { [key: string]: number } = {}
       transactions?.forEach(transaction => {
-        if (transaction.category) {
+        if (transaction.category && !internalTransferCategoryIds.includes(transaction.category)) {
           spendingByCategory[transaction.category] = 
             (spendingByCategory[transaction.category] || 0) + transaction.amount
         }

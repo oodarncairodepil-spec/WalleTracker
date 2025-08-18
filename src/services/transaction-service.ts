@@ -193,7 +193,16 @@ export class TransactionService {
   async getUnpaidExpensesTotal(): Promise<number> {
     try {
       const unpaidExpenses = await this.getUnpaidExpenses()
-      return unpaidExpenses.reduce((total, expense) => total + expense.amount, 0)
+      
+      // Internal transfer category IDs to exclude from calculations
+      const internalTransferCategoryIds = [
+        '90eae994-67f1-426e-a8bc-ff6e2dbab51c', // Other - Internal Transfer
+        'ece52746-3984-4a1e-b8a4-dadfd916612e'  // Salary - Internal Transfer
+      ]
+      
+      return unpaidExpenses
+        .filter(expense => !internalTransferCategoryIds.includes(expense.category))
+        .reduce((total, expense) => total + expense.amount, 0)
     } catch (error) {
       console.error('Error calculating unpaid expenses total:', error)
       return 0
@@ -204,7 +213,18 @@ export class TransactionService {
     const transactions = await this.getTransactions()
     const categoryTotals: Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }> = {}
 
+    // Internal transfer category IDs to exclude from calculations
+    const internalTransferCategoryIds = [
+      '90eae994-67f1-426e-a8bc-ff6e2dbab51c', // Other - Internal Transfer
+      'ece52746-3984-4a1e-b8a4-dadfd916612e'  // Salary - Internal Transfer
+    ]
+
     transactions.forEach(transaction => {
+      // Skip internal transfer transactions
+      if (internalTransferCategoryIds.includes(transaction.category)) {
+        return
+      }
+
       if (!categoryTotals[transaction.category]) {
         categoryTotals[transaction.category] = {
           income: 0,

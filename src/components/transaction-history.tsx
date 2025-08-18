@@ -51,6 +51,8 @@ export function TransactionHistory() {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+  const [viewingTransaction, setViewingTransaction] = useState<Transaction | null>(null)
   
   // Form state
   const [amount, setAmount] = useState('')
@@ -509,8 +511,8 @@ export function TransactionHistory() {
       return subcategory.name
     }
     
-    // Return the categoryId if not found
-    return categoryId
+    // Return a user-friendly fallback instead of UUID
+    return 'Unknown Category'
   }
 
   // Get all available categories (both main categories and subcategories)
@@ -911,7 +913,31 @@ export function TransactionHistory() {
                   <div 
                     key={transaction.id} 
                     className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200"
-                    onClick={() => handleEdit(transaction)}
+                    onClick={() => {
+                      setViewingTransaction(transaction)
+                      setIsDetailsDialogOpen(true)
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      handleEdit(transaction)
+                    }}
+                    onTouchStart={(e) => {
+                      const touchStartTime = Date.now()
+                      const timeoutId = setTimeout(() => {
+                        handleEdit(transaction)
+                      }, 500)
+                      
+                      const handleTouchEnd = () => {
+                        clearTimeout(timeoutId)
+                        if (Date.now() - touchStartTime < 500) {
+                          setViewingTransaction(transaction)
+                          setIsDetailsDialogOpen(true)
+                        }
+                        e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                      }
+                      
+                      e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                    }}
                   >
                     <div className="flex justify-between items-center">
                       <div className="flex-1">
@@ -941,7 +967,31 @@ export function TransactionHistory() {
                   <div 
                     key={transaction.id} 
                     className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200"
-                    onClick={() => handleEdit(transaction)}
+                    onClick={() => {
+                      setViewingTransaction(transaction)
+                      setIsDetailsDialogOpen(true)
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      handleEdit(transaction)
+                    }}
+                    onTouchStart={(e) => {
+                      const touchStartTime = Date.now()
+                      const timeoutId = setTimeout(() => {
+                        handleEdit(transaction)
+                      }, 500)
+                      
+                      const handleTouchEnd = () => {
+                        clearTimeout(timeoutId)
+                        if (Date.now() - touchStartTime < 500) {
+                          setViewingTransaction(transaction)
+                          setIsDetailsDialogOpen(true)
+                        }
+                        e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                      }
+                      
+                      e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                    }}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -995,6 +1045,85 @@ export function TransactionHistory() {
               Delete
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transaction Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transaction Details</DialogTitle>
+          </DialogHeader>
+          {viewingTransaction && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Type</Label>
+                  <p className={`text-sm font-semibold ${
+                    viewingTransaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {viewingTransaction.type === 'income' ? 'Income' : 'Expense'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Amount</Label>
+                  <p className={`text-sm font-semibold ${
+                    viewingTransaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {viewingTransaction.type === 'income' ? '+' : '-'}{formatIDR(viewingTransaction.amount)}
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-sm font-medium text-gray-600">Category</Label>
+                <p className="text-sm">{getCategoryName(viewingTransaction.category)}</p>
+              </div>
+              
+              <div>
+                <Label className="text-sm font-medium text-gray-600">Fund</Label>
+                <p className="text-sm">
+                  {viewingTransaction.source_of_funds_id 
+                    ? funds.find(f => f.id === viewingTransaction.source_of_funds_id)?.name || 'Unknown Fund' 
+                    : 'No Fund'}
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Date</Label>
+                  <p className="text-sm">{new Date(viewingTransaction.date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Status</Label>
+                  <p className={`text-sm font-medium ${
+                    viewingTransaction.status === 'paid' ? 'text-green-600' : 'text-orange-600'
+                  }`}>
+                    {viewingTransaction.status === 'paid' ? 'Paid' : 'Unpaid'}
+                  </p>
+                </div>
+              </div>
+              
+              {viewingTransaction.note && (
+                <div>
+                  <Label className="text-sm font-medium text-gray-600">Note</Label>
+                  <p className="text-sm text-gray-700">{viewingTransaction.note}</p>
+                </div>
+              )}
+              
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setIsDetailsDialogOpen(false)
+                  handleEdit(viewingTransaction)
+                }}>
+                  Edit
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
       </div>
