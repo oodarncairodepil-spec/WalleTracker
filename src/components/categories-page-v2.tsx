@@ -547,26 +547,46 @@ export function CategoriesPageV2() {
                   handleEdit(category, false)
                 }}
                 onTouchStart={(e) => {
-                  const touchStartTime = Date.now()
-                  const timeoutId = setTimeout(() => {
-                    handleEdit(category, false)
-                  }, 500)
+                const touchStartTime = Date.now()
+                const startX = e.touches[0].clientX
+                const startY = e.touches[0].clientY
+                let hasMoved = false
+                
+                const timeoutId = setTimeout(() => {
+                   if (!hasMoved) {
+                     handleEdit(category, false)
+                   }
+                 }, 500)
+                
+                const handleTouchMove = (moveEvent: TouchEvent) => {
+                  const moveX = moveEvent.touches[0].clientX
+                  const moveY = moveEvent.touches[0].clientY
+                  const deltaX = Math.abs(moveX - startX)
+                  const deltaY = Math.abs(moveY - startY)
                   
-                  const handleTouchEnd = () => {
+                  if (deltaX > 10 || deltaY > 10) {
+                    hasMoved = true
                     clearTimeout(timeoutId)
-                    if (Date.now() - touchStartTime < 500) {
-                      setViewingCategory(category)
-                      setIsDetailsDialogOpen(true)
-                    }
-                    if (e.currentTarget) {
-                      e.currentTarget.removeEventListener('touchend', handleTouchEnd)
-                    }
                   }
-                  
+                }
+                
+                const handleTouchEnd = () => {
+                  clearTimeout(timeoutId)
+                  if (Date.now() - touchStartTime < 500 && !hasMoved) {
+                    setViewingCategory(category)
+                    setIsDetailsDialogOpen(true)
+                  }
                   if (e.currentTarget) {
-                    e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                    e.currentTarget.removeEventListener('touchend', handleTouchEnd)
+                    e.currentTarget.removeEventListener('touchmove', handleTouchMove)
                   }
-                }}
+                }
+                
+                if (e.currentTarget) {
+                  e.currentTarget.addEventListener('touchend', handleTouchEnd)
+                  e.currentTarget.addEventListener('touchmove', handleTouchMove)
+                }
+              }}
               >
                 <CardHeader>
                   <div className="flex justify-between items-center">
