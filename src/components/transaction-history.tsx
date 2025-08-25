@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 // Table imports removed as we're now using card layout
 import { toast } from 'sonner'
-import { Plus, Trash2, Filter } from 'lucide-react'
+import { Plus, Trash2, Filter, Wallet } from 'lucide-react'
+import Image from 'next/image'
 import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
 
@@ -53,6 +54,8 @@ export function TransactionHistory() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [viewingTransaction, setViewingTransaction] = useState<Transaction | null>(null)
+  const [isSyncConfirmDialogOpen, setIsSyncConfirmDialogOpen] = useState(false)
+  const [linkedTransaction, setLinkedTransaction] = useState<Transaction | null>(null)
   
   // Form state
   const [amount, setAmount] = useState('')
@@ -65,6 +68,7 @@ export function TransactionHistory() {
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [sourceOfFundsId, setSourceOfFundsId] = useState('none')
+  const [destinationFundId, setDestinationFundId] = useState('none') // For Internal Transfer
   const [status, setStatus] = useState<'paid' | 'unpaid'>('paid')
   const [note, setNote] = useState('')
   
@@ -108,16 +112,7 @@ export function TransactionHistory() {
       await loadAllSubcategories()
       setFunds(fundsData)
       
-      // Auto-select default fund for new transactions
-      try {
-        const defaultFund = await fundsService.getDefaultFund()
-        if (defaultFund && sourceOfFundsId === 'none') {
-          setSourceOfFundsId(defaultFund.id)
-        }
-      } catch {
-        // Default fund not found or error, keep 'none' selection
-        console.log('No default fund found')
-      }
+      // Keep source of funds as 'none' for new transactions
     } catch (error) {
       console.error('Error loading data:', error instanceof Error ? error.message : String(error))
       toast.error('Failed to load data', { duration: 1000 })
@@ -208,6 +203,43 @@ export function TransactionHistory() {
     return categories.filter(cat => cat.type === categoryType)
   }
 
+  // Helper function to check if selected category/subcategory is Internal Transfer
+  const isInternalTransfer = () => {
+    const selectedCategoryId = subcategory || category
+    const selectedSubcategory = allSubcategories.find(sub => sub.id === selectedCategoryId)
+    return selectedSubcategory?.name?.toLowerCase().includes('internal transfer') || false
+  }
+
+  // Helper function to check if a transaction is Internal Transfer
+  const isTransactionInternalTransfer = (transaction: Transaction) => {
+    const transactionSubcategory = allSubcategories.find(sub => sub.id === transaction.category)
+    return transactionSubcategory?.name?.toLowerCase().includes('internal transfer') || false
+  }
+
+  // Helper function to find linked Internal Transfer transaction
+  const findLinkedInternalTransfer = (transaction: Transaction) => {
+    if (!isTransactionInternalTransfer(transaction)) return null
+    
+    // Only consider transactions truly linked when they have proper destination_fund_id relationships
+    if (transaction.destination_fund_id) {
+      const oppositeType = transaction.type === 'expense' ? 'income' : 'expense'
+      const linked = transactions.find(t => 
+        t.id !== transaction.id &&
+        t.type === oppositeType &&
+        t.destination_fund_id === transaction.source_of_funds_id &&
+        t.source_of_funds_id === transaction.destination_fund_id &&
+        t.amount === transaction.amount &&
+        t.date === transaction.date &&
+        isTransactionInternalTransfer(t)
+      )
+      return linked || null
+    }
+    
+    // For transactions without destination_fund_id, they are not considered linked
+    // This prevents false positives where unrelated transactions might match by coincidence
+    return null
+  }
+
   // Fetch subcategories when main category is selected
   const handleCategoryChange = async (categoryId: string) => {
     setCategory(categoryId)
@@ -239,6 +271,12 @@ export function TransactionHistory() {
       return
     }
 
+    // Validate destination fund for Internal Transfer expense transactions
+    if (isInternalTransfer() && type === 'expense' && destinationFundId === 'none') {
+      toast.error('Please select a destination fund for Internal Transfer', { duration: 1000 })
+      return
+    }
+
     const amountValue = parseInt(amount.replace(/[^0-9]/g, ''), 10)
     if (isNaN(amountValue) || amountValue <= 0) {
       toast.error('Please enter a valid amount', { duration: 1000 })
@@ -255,16 +293,96 @@ export function TransactionHistory() {
         type,
         date,
         source_of_funds_id: sourceOfFundsId === 'none' ? undefined : sourceOfFundsId,
+        destination_fund_id: isInternalTransfer() && type === 'expense' && destinationFundId !== 'none' ? destinationFundId : undefined,
         status,
         note: note.trim() || undefined
       }
 
       if (editingTransaction) {
-        await transactionService.updateTransaction(editingTransaction.id, transactionData)
-        toast.success('Transaction updated successfully', { duration: 1000 })
+        // Check if this is an Internal Transfer edit that needs synchronization
+        if (isTransactionInternalTransfer(editingTransaction) && destinationFundId !== 'none') {
+          const linkedTransaction = findLinkedInternalTransfer(editingTransaction)
+          if (linkedTransaction) {
+            // Update the main transaction
+            await transactionService.updateTransaction(editingTransaction.id, transactionData)
+            
+            // Update the linked transaction with corresponding changes
+            const linkedUpdates = {
+              amount: amountValue,
+              date,
+              status,
+              note: note.trim() || undefined,
+              source_of_funds_id: destinationFundId === 'none' ? undefined : destinationFundId,
+              description: editingTransaction.type === 'expense' 
+                ? `Internal Transfer from ${funds.find(f => f.id === sourceOfFundsId)?.name || 'Unknown'}`
+                : `Internal Transfer to ${funds.find(f => f.id === destinationFundId)?.name || 'Unknown'}`
+            }
+            
+            await transactionService.updateTransaction(linkedTransaction.id, linkedUpdates)
+            toast.success('Internal Transfer synchronized successfully', { duration: 1000 })
+          } else {
+            await transactionService.updateTransaction(editingTransaction.id, transactionData)
+            toast.success('Transaction updated successfully', { duration: 1000 })
+          }
+        } else if (isInternalTransfer() && destinationFundId !== 'none') {
+          // This is a regular transaction being converted to Internal Transfer
+          await transactionService.updateTransaction(editingTransaction.id, transactionData)
+          
+          // Create the corresponding income transaction
+          const salaryCategory = categories.find(cat => cat.name === 'Salary' && cat.type === 'income')
+          const internalTransferIncomeSubcat = allSubcategories.find(sub => 
+            sub.name.toLowerCase().includes('internal transfer') && 
+            sub.main_category_id === salaryCategory?.id
+          )
+          
+          const incomeTransactionData = {
+            description: `Internal Transfer from ${funds.find(f => f.id === sourceOfFundsId)?.name || 'Unknown'}`,
+            amount: amountValue,
+            category: internalTransferIncomeSubcat?.id || salaryCategory?.id || subcategory || category,
+            type: 'income' as const,
+            date,
+            source_of_funds_id: destinationFundId,
+            destination_fund_id: sourceOfFundsId, // Link back to the source fund
+            status,
+            note: note.trim() || undefined
+          }
+          
+          await transactionService.createTransaction(incomeTransactionData)
+          toast.success('Transaction converted to Internal Transfer successfully', { duration: 1000 })
+        } else {
+          await transactionService.updateTransaction(editingTransaction.id, transactionData)
+          toast.success('Transaction updated successfully', { duration: 1000 })
+        }
       } else {
+        // Create the expense transaction
         await transactionService.createTransaction(transactionData)
-        toast.success('Transaction added successfully', { duration: 1000 })
+        
+        // If it's an Internal Transfer, create corresponding income transaction
+        if (isInternalTransfer() && destinationFundId !== 'none') {
+          // Find the "Internal Transfer" subcategory under "Salary" for income
+          const salaryCategory = categories.find(cat => cat.name === 'Salary' && cat.type === 'income')
+          const internalTransferIncomeSubcat = allSubcategories.find(sub => 
+            sub.name.toLowerCase().includes('internal transfer') && 
+            sub.main_category_id === salaryCategory?.id
+          )
+          
+          const incomeTransactionData = {
+            description: `Internal Transfer from ${funds.find(f => f.id === sourceOfFundsId)?.name || 'Unknown'}`,
+            amount: amountValue,
+            category: internalTransferIncomeSubcat?.id || salaryCategory?.id || subcategory || category,
+            type: 'income' as const,
+            date,
+            source_of_funds_id: destinationFundId,
+            destination_fund_id: sourceOfFundsId, // Link back to the source fund
+            status,
+            note: note.trim() || undefined
+          }
+          
+          await transactionService.createTransaction(incomeTransactionData)
+          toast.success('Internal Transfer completed successfully', { duration: 1000 })
+        } else {
+          toast.success('Transaction added successfully', { duration: 1000 })
+        }
       }
       
       // Reset form and close dialog
@@ -279,15 +397,89 @@ export function TransactionHistory() {
     }
   }
 
-  const handleEdit = (transaction: Transaction) => {
+  const handleEdit = async (transaction: Transaction) => {
+    // Check if this is an Internal Transfer transaction
+    if (isTransactionInternalTransfer(transaction)) {
+      const linked = findLinkedInternalTransfer(transaction)
+      if (linked) {
+        setEditingTransaction(transaction)
+        setLinkedTransaction(linked)
+        setIsSyncConfirmDialogOpen(true)
+        return
+      }
+    }
+    
+    // Proceed with normal edit flow
+    await proceedWithEdit(transaction)
+  }
+  
+  const proceedWithEdit = async (transaction: Transaction) => {
     setEditingTransaction(transaction)
     setAmount(transaction.amount.toString())
-    setCategory(transaction.category)
     setType(transaction.type)
     setDate(transaction.date)
     setSourceOfFundsId(transaction.source_of_funds_id || 'none')
+    
+    // For Internal Transfer, set destination fund based on linked transaction
+    if (isTransactionInternalTransfer(transaction)) {
+      const linked = findLinkedInternalTransfer(transaction)
+      if (linked) {
+        setDestinationFundId(linked.source_of_funds_id || 'none')
+      } else {
+        setDestinationFundId('none')
+      }
+    } else {
+      setDestinationFundId('none') // Reset destination fund for non-internal transfers
+    }
+    
     setStatus(transaction.status)
     setNote(transaction.note || '')
+    
+    // Determine if the category is a main category or subcategory
+    const isMainCategory = categories.find(cat => cat.id === transaction.category)
+    const matchingSubcategory = allSubcategories.find(sub => sub.id === transaction.category)
+    
+    if (isMainCategory) {
+      // It's a main category
+      setCategory(transaction.category)
+      setSubcategory('')
+      // Load subcategories for this main category
+      try {
+        const { data: subcategoriesData, error } = await categoriesServiceV2.getSubcategories(transaction.category)
+        if (error) {
+          console.error('Error fetching subcategories:', error)
+          setSubcategories([])
+        } else {
+          setSubcategories(subcategoriesData || [])
+        }
+      } catch (error) {
+        console.error('Error fetching subcategories:', error instanceof Error ? error.message : String(error))
+        setSubcategories([])
+      }
+    } else if (matchingSubcategory) {
+      // It's a subcategory
+      setCategory(matchingSubcategory.main_category_id)
+      setSubcategory(transaction.category)
+      // Load subcategories for the main category
+      try {
+        const { data: subcategoriesData, error } = await categoriesServiceV2.getSubcategories(matchingSubcategory.main_category_id)
+        if (error) {
+          console.error('Error fetching subcategories:', error)
+          setSubcategories([])
+        } else {
+          setSubcategories(subcategoriesData || [])
+        }
+      } catch (error) {
+        console.error('Error fetching subcategories:', error instanceof Error ? error.message : String(error))
+        setSubcategories([])
+      }
+    } else {
+      // Fallback - treat as main category
+      setCategory(transaction.category)
+      setSubcategory('')
+      setSubcategories([])
+    }
+    
     setIsDialogOpen(true)
   }
 
@@ -346,14 +538,10 @@ export function TransactionHistory() {
     }
     setStatus('paid')
     setNote('')
+    setDestinationFundId('none') // Reset destination fund
     
-    // Auto-select default fund for new transactions
-    try {
-      const defaultFund = await fundsService.getDefaultFund()
-      setSourceOfFundsId(defaultFund ? defaultFund.id : 'none')
-    } catch {
-      setSourceOfFundsId('none')
-    }
+    // Always reset source of funds to 'none' for new transactions
+    setSourceOfFundsId('none')
   }
 
   const handleDialogClose = async () => {
@@ -813,21 +1001,132 @@ export function TransactionHistory() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="source">Source of Funds</Label>
+                <Label htmlFor="source">
+                  Source of Funds
+                </Label>
                 <Select value={sourceOfFundsId} onValueChange={setSourceOfFundsId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select funding source" />
+                    <SelectValue placeholder="Select funding source">
+                      {sourceOfFundsId && sourceOfFundsId !== 'none' && (() => {
+                        const selectedFund = funds.find(f => f.id === sourceOfFundsId);
+                        if (selectedFund) {
+                          return (
+                            <div className="flex items-center gap-2">
+                              {selectedFund.image_url ? (
+                                <Image 
+                                  src={selectedFund.image_url} 
+                                  alt={selectedFund.name}
+                                  width={16}
+                                  height={16}
+                                  className="w-4 h-4 rounded-sm object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${selectedFund.image_url ? 'hidden' : ''}`}>
+                                {selectedFund.name.substring(0, 1).toUpperCase()}
+                              </div>
+                              {selectedFund.name}
+                            </div>
+                          );
+                        }
+                      })()}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No funding source</SelectItem>
                     {funds.filter(fund => fund.status === 'Active').map((fund) => (
                       <SelectItem key={fund.id} value={fund.id}>
-                        {fund.name}
+                        <div className="flex items-center gap-2">
+                          {fund.image_url ? (
+                            <Image 
+                              src={fund.image_url} 
+                              alt={fund.name}
+                              width={16}
+                              height={16}
+                              className="w-4 h-4 rounded-sm object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${fund.image_url ? 'hidden' : ''}`}>
+                            {fund.name.substring(0, 1).toUpperCase()}
+                          </div>
+                          {fund.name}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              
+              {/* Destination Fund Selector - Only show for Internal Transfer expense transactions */}
+              {isInternalTransfer() && type === 'expense' && (
+                <div className="space-y-2">
+                  <Label htmlFor="destination">Destination Fund *</Label>
+                  <Select value={destinationFundId} onValueChange={setDestinationFundId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select destination fund">
+                        {destinationFundId && destinationFundId !== 'none' && (() => {
+                          const selectedFund = funds.find(f => f.id === destinationFundId);
+                          if (selectedFund) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                {selectedFund.image_url ? (
+                                  <Image 
+                                    src={selectedFund.image_url} 
+                                    alt={selectedFund.name}
+                                    width={16}
+                                    height={16}
+                                    className="w-4 h-4 rounded-sm object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                  />
+                                ) : null}
+                                <div className={`w-4 h-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${selectedFund.image_url ? 'hidden' : ''}`}>
+                                  {selectedFund.name.substring(0, 1).toUpperCase()}
+                                </div>
+                                {selectedFund.name}
+                              </div>
+                            );
+                          }
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {funds.filter(fund => fund.status === 'Active' && fund.id !== sourceOfFundsId).map((fund) => (
+                        <SelectItem key={fund.id} value={fund.id}>
+                          <div className="flex items-center gap-2">
+                            {fund.image_url ? (
+                              <Image 
+                                src={fund.image_url} 
+                                alt={fund.name}
+                                width={16}
+                                height={16}
+                                className="w-4 h-4 rounded-sm object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-4 h-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${fund.image_url ? 'hidden' : ''}`}>
+                              {fund.name.substring(0, 1).toUpperCase()}
+                            </div>
+                            {fund.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               
               <div className="space-y-2">
                 <Label htmlFor="status">Status *</Label>
@@ -966,7 +1265,33 @@ export function TransactionHistory() {
                     <div className="flex justify-between items-center">
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900 text-lg mb-1">{getCategoryName(transaction.category)}</div>
-                        <div className="text-sm text-gray-500 mb-1">
+                        <div className="text-sm text-gray-500 mb-1 flex items-center gap-1">
+                          {(() => {
+                            const fund = transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id) : null;
+                            if (fund) {
+                              return (
+                                <>
+                                  {fund.image_url ? (
+                                    <Image 
+                                      src={fund.image_url} 
+                                      alt={fund.name}
+                                      width={12}
+                                      height={12}
+                                      className="w-3 h-3 rounded-sm object-cover"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                      }}
+                                    />
+                                  ) : null}
+                                  <div className={`w-3 h-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[8px] ${fund.image_url ? 'hidden' : ''}`}>
+                                    {fund.name.substring(0, 1).toUpperCase()}
+                                  </div>
+                                </>
+                              );
+                            }
+                            return <Wallet className="w-3 h-3" />;
+                          })()} 
                           {transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund'}
                         </div>
                       </div>
@@ -1044,7 +1369,33 @@ export function TransactionHistory() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryName(transaction.category)}</div>
-                        <div className="text-sm text-gray-500 mb-2">
+                        <div className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                          {(() => {
+                            const fund = transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id) : null;
+                            if (fund) {
+                              return (
+                                <>
+                                  {fund.image_url ? (
+                                    <Image 
+                                      src={fund.image_url} 
+                                      alt={fund.name}
+                                      width={12}
+                                      height={12}
+                                      className="w-3 h-3 rounded-sm object-cover"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                      }}
+                                    />
+                                  ) : null}
+                                  <div className={`w-3 h-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[8px] ${fund.image_url ? 'hidden' : ''}`}>
+                                    {fund.name.substring(0, 1).toUpperCase()}
+                                  </div>
+                                </>
+                              );
+                            }
+                            return <Wallet className="w-3 h-3" />;
+                          })()} 
                           {transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund'}
                         </div>
                       </div>
@@ -1129,7 +1480,35 @@ export function TransactionHistory() {
               </div>
               
               <div>
-                <Label className="text-sm font-medium text-gray-600">Fund</Label>
+                <Label className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                  {(() => {
+                    const fund = viewingTransaction.source_of_funds_id ? funds.find(f => f.id === viewingTransaction.source_of_funds_id) : null;
+                    if (fund) {
+                      return (
+                        <>
+                          {fund.image_url ? (
+                            <Image 
+                              src={fund.image_url} 
+                              alt={fund.name}
+                              width={16}
+                              height={16}
+                              className="w-4 h-4 rounded-sm object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <div className={`w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${fund.image_url ? 'hidden' : ''}`}>
+                            {fund.name.substring(0, 1).toUpperCase()}
+                          </div>
+                        </>
+                      );
+                    }
+                    return <Wallet className="w-4 h-4" />;
+                  })()} 
+                  Fund
+                </Label>
                 <p className="text-sm">
                   {viewingTransaction.source_of_funds_id 
                     ? funds.find(f => f.id === viewingTransaction.source_of_funds_id)?.name || 'Unknown Fund' 
@@ -1172,6 +1551,40 @@ export function TransactionHistory() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Sync Internal Transfer Confirmation Dialog */}
+      <Dialog open={isSyncConfirmDialogOpen} onOpenChange={setIsSyncConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Sync Internal Transfer</DialogTitle>
+            <DialogDescription>
+              This is an Internal Transfer transaction. Editing it will also update the corresponding {editingTransaction?.type === 'expense' ? 'income' : 'expense'} transaction. Do you want to proceed with synchronized editing?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3 justify-end mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsSyncConfirmDialogOpen(false)
+                setEditingTransaction(null)
+                setLinkedTransaction(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setIsSyncConfirmDialogOpen(false)
+                if (editingTransaction) {
+                  proceedWithEdit(editingTransaction)
+                }
+              }}
+            >
+              Proceed with Sync
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       </div>

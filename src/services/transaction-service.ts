@@ -16,7 +16,7 @@ export class TransactionService {
         .from('transactions')
         .select(`
           *,
-          fund:funds(id, name, balance)
+          fund:funds!source_of_funds_id(id, name, balance)
         `)
         .order('created_at', { ascending: false })
 
@@ -49,7 +49,7 @@ export class TransactionService {
       })
       .select(`
         *,
-        fund:funds(id, name, balance)
+        fund:funds!source_of_funds_id(id, name, balance)
       `)
       .single()
 
@@ -82,7 +82,7 @@ export class TransactionService {
       .eq('id', id)
       .select(`
         *,
-        fund:funds(id, name, balance)
+        fund:funds!source_of_funds_id(id, name, balance)
       `)
       .single()
 
@@ -145,7 +145,7 @@ export class TransactionService {
       .from('transactions')
       .select(`
         *,
-        fund:funds(id, name, balance)
+        fund:funds!source_of_funds_id(id, name, balance)
       `)
       .eq('id', id)
       .single()
@@ -171,7 +171,7 @@ export class TransactionService {
         .from('transactions')
         .select(`
           *,
-          fund:funds(id, name, balance)
+          fund:funds!source_of_funds_id(id, name, balance)
         `)
         .eq('type', 'expense')
         .eq('status', 'unpaid')

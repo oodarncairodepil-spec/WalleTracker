@@ -107,11 +107,17 @@ If no transactions are found, return an empty transactions array. Be as accurate
       
       try {
         // Remove any markdown code block formatting and clean the content
-        const cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
+        let cleanContent = content.replace(/```json\n?|```\n?/g, '').trim();
         
-        // Check if the response looks like it might not be JSON
+        // Try to extract JSON from the response if it contains explanatory text
         if (!cleanContent.startsWith('{') && !cleanContent.startsWith('[')) {
-          throw new Error(`OpenAI returned non-JSON response: "${cleanContent.substring(0, 100)}..."`);
+          // Look for JSON object or array in the response
+           const jsonMatch = cleanContent.match(/[{\[][\s\S]*[}\]]/);
+          if (jsonMatch) {
+            cleanContent = jsonMatch[0];
+          } else {
+            throw new Error(`OpenAI returned non-JSON response: "${cleanContent.substring(0, 100)}..."`);  
+          }
         }
         
         extractedData = JSON.parse(cleanContent);

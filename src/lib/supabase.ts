@@ -54,6 +54,7 @@ export interface Transaction {
   type: 'income' | 'expense'
   date: string
   source_of_funds_id?: string
+  destination_fund_id?: string // For internal transfers
   status: 'paid' | 'unpaid'
   note?: string
   created_at?: string

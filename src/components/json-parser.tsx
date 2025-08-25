@@ -47,6 +47,9 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
   const [selectedRecord, setSelectedRecord] = useState<ParsedJSONRecord | null>(null)
   const [showRecordDetails, setShowRecordDetails] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [recordToDelete, setRecordToDelete] = useState<string | null>(null)
   
   // Fund and category states
   const [funds, setFunds] = useState<Fund[]>([])
@@ -120,41 +123,60 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
 
     // Check if input looks like a URL or non-JSON text
     const trimmedInput = jsonString.trim()
-    if (trimmedInput.startsWith('http') || trimmedInput.startsWith('www') || !trimmedInput.startsWith('{')) {
-      throw new Error('Input appears to be a URL or plain text. Please enter valid JSON data with a "transactions" array.')
+    if (trimmedInput.startsWith('http') || trimmedInput.startsWith('www')) {
+      throw new Error('Input appears to be a URL. Please enter valid JSON data with a "transactions" array.')
+    }
+    
+    // Check if input looks like plain text (not starting with { or [)
+    if (!trimmedInput.startsWith('{') && !trimmedInput.startsWith('[')) {
+      throw new Error('Input appears to be plain text. Please enter valid JSON data with a "transactions" array.')
     }
 
     try {
       const parsed = JSON.parse(jsonString)
       
-      // Validate that parsed result is an object
-      if (typeof parsed !== 'object' || parsed === null) {
-        throw new Error('JSON must be an object containing a "transactions" array')
-      }
+      let transactionsArray: any[]
       
-      // Check for transactions array
-      if (!parsed.transactions) {
-        throw new Error('JSON must contain a "transactions" property')
-      }
-      
-      if (!Array.isArray(parsed.transactions)) {
-        throw new Error('The "transactions" property must be an array')
+      // Handle both object format {transactions: [...]} and direct array format [...]
+      if (Array.isArray(parsed)) {
+        // Direct array format
+        transactionsArray = parsed
+      } else if (typeof parsed === 'object' && parsed !== null) {
+        // Object format - check for transactions property
+        if (!parsed.transactions) {
+          throw new Error('JSON object must contain a "transactions" property, or provide a direct array of transactions')
+        }
+        
+        if (!Array.isArray(parsed.transactions)) {
+          throw new Error('The "transactions" property must be an array')
+        }
+        
+        transactionsArray = parsed.transactions
+      } else {
+        throw new Error('JSON must be either an array of transactions or an object containing a "transactions" array')
       }
 
-      if (parsed.transactions.length === 0) {
-        throw new Error('The "transactions" array cannot be empty')
+      if (transactionsArray.length === 0) {
+        throw new Error('The transactions array cannot be empty')
       }
 
       // Validate each transaction has required fields
-      const validatedTransactions = parsed.transactions.map((transaction: any, index: number) => {
+      const validatedTransactions = transactionsArray.map((transaction: any, index: number) => {
         if (typeof transaction !== 'object' || transaction === null) {
           throw new Error(`Transaction at index ${index} must be an object`)
         }
 
-        // Validate amount is a valid number
-        const amount = parseFloat(transaction.amount)
+        // Validate amount is a valid number - check multiple possible field names
+        let amount: number
+        const amountValue = transaction.amount ?? transaction.value ?? transaction.price ?? transaction.total
+        
+        if (amountValue === undefined || amountValue === null) {
+          throw new Error(`Transaction at index ${index} is missing amount field. Expected 'amount', 'value', 'price', or 'total' property.`)
+        }
+        
+        amount = parseFloat(String(amountValue))
         if (isNaN(amount)) {
-          throw new Error(`Transaction at index ${index} has invalid amount: "${transaction.amount}"`)
+          throw new Error(`Transaction at index ${index} has invalid amount: "${amountValue}". Amount must be a valid number.`)
         }
 
         return {
@@ -163,6 +185,7 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
           date: transaction.date || new Date().toISOString().split('T')[0],
           description: transaction.description || `Transaction ${index + 1}`,
           amount: amount,
+          type: (amount >= 0 ? 'income' : 'expense') as 'income' | 'expense',
           currency: transaction.currency || 'IDR',
           category: transaction.category || '',
           subcategory: transaction.subcategory || '',
@@ -239,9 +262,8 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
         id: Date.now().toString(),
         user_id: user?.id || '',
         record_id: crypto.randomUUID(),
-        image_data: btoa(jsonInput),
-        openai_response: { original_input: jsonInput },
-        extracted_json: transactions as Record<string, unknown>,
+        json_input: jsonInput,
+        extracted_data: transactions as unknown as Record<string, unknown>,
         status: 'success',
         timestamp: new Date().toISOString()
       }
@@ -265,9 +287,8 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
         id: Date.now().toString(),
         user_id: user?.id || '',
         record_id: crypto.randomUUID(),
-        image_data: btoa(jsonInput),
-        openai_response: { original_input: jsonInput },
-        extracted_json: [],
+        json_input: jsonInput,
+        extracted_data: {} as Record<string, unknown>,
         status: 'error',
         error_message: errorMessage,
         timestamp: new Date().toISOString()
@@ -298,17 +319,31 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
   }
 
   const deleteHistoryItem = async (recordId: string) => {
+    setRecordToDelete(recordId)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDeleteHistoryItem = async () => {
+    if (!recordToDelete) return
+    
     try {
-      await jsonParserService.deleteParsingRecord(recordId)
-      setParsingHistory(prev => prev.filter(record => record.id !== recordId))
+      await jsonParserService.deleteParsingRecord(recordToDelete)
+      setParsingHistory(prev => prev.filter(record => record.id !== recordToDelete))
       toast.success('Record deleted')
     } catch (error) {
       console.error('Error deleting record:', error)
       toast.error('Failed to delete record')
+    } finally {
+      setShowDeleteConfirm(false)
+      setRecordToDelete(null)
     }
   }
 
   const clearHistory = async () => {
+    setShowClearConfirm(true)
+  }
+
+  const confirmClearHistory = async () => {
     try {
       await jsonParserService.clearParsingHistory()
       setParsingHistory([])
@@ -316,6 +351,39 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
     } catch (error) {
       console.error('Error clearing history:', error)
       toast.error('Failed to clear history')
+    } finally {
+      setShowClearConfirm(false)
+    }
+  }
+
+  const handleUseTransactions = async () => {
+    if (!extractedData || !selectedFund) {
+      toast.error('Please select a fund first')
+      return
+    }
+
+    try {
+      // Update transactions with selected fund and categories
+      const updatedTransactions = extractedData.transactions.map((transaction, index) => {
+        const categoryInfo = transactionCategories[index]
+        return {
+          ...transaction,
+          fund_id: selectedFund,
+          category: categoryInfo?.categoryId || '',
+          subcategory: categoryInfo?.subcategoryId || ''
+        }
+      })
+
+      // Call the callback with updated transactions
+      if (onTransactionsExtracted) {
+        onTransactionsExtracted(updatedTransactions)
+      }
+
+      toast.success(`Added ${updatedTransactions.length} transactions`)
+      onClose()
+    } catch (error) {
+      console.error('Error using transactions:', error)
+      toast.error('Failed to add transactions')
     }
   }
 
@@ -345,14 +413,14 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
   }
 
   const viewHistoryDetails = (record: ParsedJSONRecord) => {
-    if (record.status === 'success' && record.extracted_json) {
+    if (record.status === 'success' && record.extracted_data) {
       // Load the parsed data into results tab
       setExtractedData({
-        transactions: record.extracted_json,
+        transactions: (record.extracted_data as unknown) as ExtractedTransaction[],
         summary: {
-          total_transactions: record.extracted_json.length,
-          total_income: record.extracted_json.filter((t: any) => t.amount > 0).reduce((sum: number, t: any) => sum + t.amount, 0),
-          total_expenses: Math.abs(record.extracted_json.filter((t: any) => t.amount < 0).reduce((sum: number, t: any) => sum + t.amount, 0))
+          total_transactions: (record.extracted_data as unknown as ExtractedTransaction[]).length,
+          total_income: ((record.extracted_data as unknown) as ExtractedTransaction[]).filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0),
+          total_expenses: Math.abs(((record.extracted_data as unknown) as ExtractedTransaction[]).filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0))
         }
       })
       setActiveTab('results')
@@ -550,6 +618,11 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
                           </div>
                         ))}
                       </div>
+                      
+                      <Button onClick={handleUseTransactions} className="w-full mt-4">
+                        <Download className="mr-2 h-4 w-4" />
+                        Add These Transactions
+                      </Button>
                     </CardContent>
                   </Card>
                 </>
@@ -592,9 +665,9 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
                                 {record.error_message}
                               </div>
                             )}
-                            {record.status === 'success' && record.extracted_json && (
+                            {record.status === 'success' && record.extracted_data && (
                               <div className="text-sm text-muted-foreground mt-1">
-                                {record.extracted_json.length} transactions extracted
+                                {Array.isArray(record.extracted_data) ? `${record.extracted_data.length} transactions extracted` : 'No transactions'}
                               </div>
                             )}
                           </div>
@@ -651,20 +724,62 @@ export function JSONParser({ isOpen, onClose, onTransactionsExtracted }: JSONPar
               <div>
                 <Label>JSON Input</Label>
                 <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-40">
-                  {selectedRecord.openai_response?.original_input || atob(selectedRecord.image_data || '')}
+{selectedRecord.json_input}
                 </pre>
               </div>
 
-              {selectedRecord.extracted_json && (
+              {selectedRecord.extracted_data && (
                 <div>
                   <Label>Extracted Data</Label>
-                <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-40">
-                  {JSON.stringify(selectedRecord.extracted_json, null, 2)}
-                </pre>
+                  <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-40">
+{JSON.stringify(selectedRecord.extracted_data, null, 2)}
+                  </pre>
                 </div>
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this parsing record? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteHistoryItem}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear History Confirmation Dialog */}
+      <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear All History</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear all parsing history? This will permanently delete all records and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowClearConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmClearHistory}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear All
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

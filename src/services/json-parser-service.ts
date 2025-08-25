@@ -5,11 +5,12 @@ export interface ParsedJSONRecord {
   user_id: string
   record_id: string
   timestamp: string
-  image_data: string // Will store JSON input as base64 for compatibility
-  openai_response?: Record<string, unknown> // Will store original JSON input
-  extracted_json: Record<string, unknown> // Will store extracted data
+  json_input: string // Original JSON input
+  extracted_data?: Record<string, unknown> // Extracted transaction data
   status: 'success' | 'error' | 'converted'
   error_message?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface JSONParserOrderItem {
@@ -231,66 +232,64 @@ export const jsonParserService = {
   // Save parsing record to history
   async saveParsingRecord(record: ParsedJSONRecord): Promise<{ error: Error | null }> {
     try {
-      // Adapt the record to match parsing_history table structure
-      const adaptedRecord = {
+      const recordToSave = {
         user_id: record.user_id,
         record_id: record.record_id,
         timestamp: record.timestamp,
-        image_data: record.image_data, // JSON input stored as base64
-        openai_response: record.openai_response, // Original JSON input
-        extracted_json: record.extracted_json, // Extracted data
+        json_input: record.json_input,
+        extracted_data: record.extracted_data,
         status: record.status,
         error_message: record.error_message
       }
 
       const { error } = await supabase
-        .from('parsing_history')
-        .insert([adaptedRecord])
+        .from('json_parser_history')
+        .insert([recordToSave])
 
       return { error }
     } catch (error) {
-      console.error('Error saving parsing record:', error)
+      console.error('Error saving JSON parsing record:', error)
       return { error: error as Error }
     }
   },
 
-  // Get parsing history for a user
+  // Get JSON parsing history for a user
   async getParsingHistory(userId: string): Promise<ParsedJSONRecord[]> {
     try {
       const { data, error } = await supabase
-        .from('parsing_history')
+        .from('json_parser_history')
         .select('*')
         .eq('user_id', userId)
         .order('timestamp', { ascending: false })
 
       if (error) {
-        console.error('Error fetching parsing history:', error)
+        console.error('Error fetching JSON parsing history:', error)
         return []
       }
 
       return data || []
     } catch (error) {
-      console.error('Error fetching parsing history:', error)
+      console.error('Error fetching JSON parsing history:', error)
       return []
     }
   },
 
-  // Delete a parsing record
+  // Delete a JSON parsing record
   async deleteParsingRecord(recordId: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
-        .from('parsing_history')
+        .from('json_parser_history')
         .delete()
         .eq('id', recordId)
 
       return { error }
     } catch (error) {
-      console.error('Error deleting parsing record:', error)
+      console.error('Error deleting JSON parsing record:', error)
       return { error: error as Error }
     }
   },
 
-  // Clear all parsing history for current user
+  // Clear all JSON parsing history for current user
   async clearParsingHistory(): Promise<{ error: Error | null }> {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -299,28 +298,28 @@ export const jsonParserService = {
       }
 
       const { error } = await supabase
-        .from('parsing_history')
+        .from('json_parser_history')
         .delete()
         .eq('user_id', user.id)
 
       return { error }
     } catch (error) {
-      console.error('Error clearing parsing history:', error)
+      console.error('Error clearing JSON parsing history:', error)
       return { error: error as Error }
     }
   },
 
-  // Update parsing record status
+  // Update JSON parsing record status
   async updateParsingRecordStatus(recordId: string, status: ParsedJSONRecord['status']): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase
-        .from('parsing_history')
+        .from('json_parser_history')
         .update({ status })
         .eq('record_id', recordId)
 
       return { error }
     } catch (error) {
-      console.error('Error updating parsing record status:', error)
+      console.error('Error updating JSON parsing record status:', error)
       return { error: error as Error }
     }
   }

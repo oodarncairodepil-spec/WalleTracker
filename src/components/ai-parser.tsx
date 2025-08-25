@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
@@ -45,6 +45,9 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
   const [parsingHistory, setParsingHistory] = useState<ParsedImageRecord[]>([])
   const [selectedRecord, setSelectedRecord] = useState<ParsedImageRecord | null>(null)
   const [showRecordDetails, setShowRecordDetails] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [recordToDelete, setRecordToDelete] = useState<string | null>(null)
   
   // Fund and category states
   const [funds, setFunds] = useState<Fund[]>([])
@@ -52,6 +55,9 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
   const [categories, setCategories] = useState<MainCategory[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [transactionCategories, setTransactionCategories] = useState<{[key: number]: {categoryId: string, subcategoryId: string}}>({})
+  
+  // Ref for file input to handle mobile browser issues
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleString()
@@ -107,14 +113,45 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
     }
   }
 
+  // Clear file input - more reliable on mobile browsers
+  const clearFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      if (file.type.startsWith('image/')) {
+      // Check file type - on mobile, MIME type might be empty or incorrect
+      const isImage = file.type.startsWith('image/') || 
+                     /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file.name)
+      
+      if (isImage) {
         setSelectedFile(file)
         setExtractedData(null)
       } else {
         toast.error('Please select an image file')
+        // Clear the input value to allow re-selection of the same file
+        clearFileInput()
+      }
+    }
+  }
+
+  // Alternative handler for mobile browsers that might not trigger onChange
+  const handleFileInput = (event: React.FormEvent<HTMLInputElement>) => {
+    const target = event.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (file) {
+      const isImage = file.type.startsWith('image/') || 
+                     /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(file.name)
+      
+      if (isImage) {
+        setSelectedFile(file)
+        setExtractedData(null)
+      } else {
+        toast.error('Please select an image file')
+        clearFileInput()
       }
     }
   }
@@ -166,6 +203,10 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
         
         toast.success(`Successfully extracted ${result.data.length} transactions`)
         
+        // Reset file input to allow re-uploading the same file
+        clearFileInput()
+        setSelectedFile(null)
+        
         // Refresh history
         await loadParsingHistory()
       } else {
@@ -201,17 +242,31 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
   }
 
   const deleteHistoryItem = async (id: string) => {
+    setRecordToDelete(id)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDeleteHistoryItem = async () => {
+    if (!recordToDelete) return
+    
     try {
-      await openaiService.deleteHistoryItem(id)
+      await openaiService.deleteHistoryItem(recordToDelete)
       toast.success('History item deleted')
       await loadParsingHistory()
     } catch (error) {
       console.error('Failed to delete history item:', error)
       toast.error('Failed to delete history item')
+    } finally {
+      setShowDeleteConfirm(false)
+      setRecordToDelete(null)
     }
   }
 
   const clearHistory = async () => {
+    setShowClearConfirm(true)
+  }
+
+  const confirmClearHistory = async () => {
     try {
       await openaiService.clearHistory()
       toast.success('History cleared')
@@ -219,6 +274,8 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
     } catch (error) {
       console.error('Failed to clear history:', error)
       toast.error('Failed to clear history')
+    } finally {
+      setShowClearConfirm(false)
     }
   }
 
@@ -303,10 +360,17 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
                   <div className="space-y-2">
                     <Label htmlFor="image-upload">Choose Image File</Label>
                     <Input
+                      ref={fileInputRef}
                       id="image-upload"
                       type="file"
                       accept="image/*"
                       onChange={handleFileSelect}
+                      onInput={handleFileInput}
+                      onClick={(e) => {
+                        // Clear previous value to ensure onChange fires on mobile
+                        const target = e.target as HTMLInputElement
+                        target.value = ''
+                      }}
                       disabled={isProcessing}
                     />
                   </div>
@@ -371,50 +435,18 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
                     </CardContent>
                   </Card>
 
-                  {/* Summary */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <span>Extracted Data Summary</span>
-                        <Button variant="outline" size="sm" onClick={downloadJSON}>
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-4 gap-4 text-center">
-                        <div className="p-3 bg-muted rounded-lg">
-                          <div className="text-2xl font-bold">{Array.isArray(extractedData) ? extractedData.length : 0}</div>
-                          <div className="text-sm text-muted-foreground">Transactions</div>
-                        </div>
-                        <div className="p-3 bg-green-50 rounded-lg">
-                          <div className="text-2xl font-bold text-green-600">
-                            {formatIDR(Array.isArray(extractedData) ? extractedData.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) : 0)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Income</div>
-                        </div>
-                        <div className="p-3 bg-red-50 rounded-lg">
-                          <div className="text-2xl font-bold text-red-600">
-                            {formatIDR(Array.isArray(extractedData) ? extractedData.filter(t => t.type === 'expense').reduce((sum, t) => sum + Math.abs(t.amount), 0) : 0)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Expenses</div>
-                        </div>
-                        <div className="p-3 bg-blue-50 rounded-lg">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {formatIDR(Array.isArray(extractedData) ? extractedData.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -Math.abs(t.amount)), 0) : 0)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">Net</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
                   {/* Transaction List with Category Selection */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Tag className="h-5 w-5" />
-                        Transaction Categories
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-5 w-5" />
+                          Transaction Categories
+                        </div>
+                        <Button variant="outline" size="sm" onClick={downloadJSON}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download JSON
+                        </Button>
                       </CardTitle>
                       <CardDescription>
                         Assign categories to each transaction
@@ -614,6 +646,48 @@ export function AIParser({ isOpen, onClose, onTransactionsExtracted }: AIParserP
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this parsing record? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteHistoryItem}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear History Confirmation Dialog */}
+      <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear All History</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear all parsing history? This will permanently delete all records and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowClearConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmClearHistory}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear All
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

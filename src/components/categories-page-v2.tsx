@@ -183,12 +183,20 @@ export function CategoriesPageV2() {
   }
 
   const toggleCategoryExpansion = (categoryId: string) => {
+    console.log('Toggling category:', categoryId)
+    console.log('Current expanded categories:', Array.from(expandedCategories))
+    
+    const category = categories.find(c => c.id === categoryId)
+    console.log('Category found:', category)
+    console.log('Subcategories:', category?.subcategories)
+    
     const newExpanded = new Set(expandedCategories)
     if (newExpanded.has(categoryId)) {
       newExpanded.delete(categoryId)
     } else {
       newExpanded.add(categoryId)
     }
+    console.log('New expanded categories:', Array.from(newExpanded))
     setExpandedCategories(newExpanded)
   }
 
