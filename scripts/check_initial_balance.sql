@@ -62,16 +62,27 @@ AND (t.note ILIKE '%initial%'
      OR c.name ILIKE '%opening%')
 ORDER BY t.date ASC;
 
--- 4. Simple calculation check
+-- 4. Dynamic balance calculation check
 SELECT '\nBalance Mystery Solver:' as section;
+WITH fund_calculations AS (
+    SELECT 
+        f.current_balance as actual_balance,
+        COALESCE(SUM(CASE WHEN t.type = 'income' AND t.status = 'paid' THEN t.amount ELSE 0 END), 0) as total_income,
+        COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.status = 'paid' THEN t.amount ELSE 0 END), 0) as total_expenses
+    FROM funds f
+    LEFT JOIN transactions t ON f.id = t.source_of_funds_id
+    WHERE f.id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5'
+    GROUP BY f.current_balance
+)
 SELECT 
-    'If fund started with 997,299 initial balance:' as scenario,
-    997299 as assumed_initial_balance,
-    1000000 as total_income,
-    101567 as total_expenses,
-    (997299 + 1000000 - 101567) as calculated_final_balance,
-    1895732 as actual_balance,
-    (1895732 - (997299 + 1000000 - 101567)) as remaining_difference;
+    'Dynamic calculation based on actual data:' as scenario,
+    (actual_balance - (total_income - total_expenses)) as implied_initial_balance,
+    total_income,
+    total_expenses,
+    (implied_initial_balance + total_income - total_expenses) as calculated_final_balance,
+    actual_balance,
+    (actual_balance - (implied_initial_balance + total_income - total_expenses)) as remaining_difference
+FROM fund_calculations;
 
 -- 5. Check if there might be missing income transactions around fund creation
 SELECT '\nTransactions around fund creation date:' as section;

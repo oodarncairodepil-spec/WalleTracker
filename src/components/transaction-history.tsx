@@ -17,6 +17,7 @@ import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
 
 import { categoriesServiceV2, type MainCategory, type Subcategory } from '../services/categories-service-v2'
+import { dateRangeService } from '../services/date-range-service'
 import type { Transaction, Fund } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
@@ -81,6 +82,8 @@ export function TransactionHistory() {
   const [filterDateStart, setFilterDateStart] = useState('')
   const [filterDateEnd, setFilterDateEnd] = useState('')
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
+  const [currentPeriodDescription, setCurrentPeriodDescription] = useState('')
+  const [useCustomDateRange, setUseCustomDateRange] = useState(true)
   
   // Reset subcategory filter when main category filter changes
   useEffect(() => {
@@ -103,14 +106,33 @@ export function TransactionHistory() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const [transactionsData, fundsData] = await Promise.all([
-        transactionService.getTransactions(),
+      
+      // Load transactions based on date range preference
+      let transactionsData: Transaction[]
+      if (useCustomDateRange) {
+        // Use server-side filtering for current period
+        const currentPeriod = await dateRangeService.getCurrentPeriodRange()
+        transactionsData = await transactionService.getTransactionsByDateRange(
+          currentPeriod.startDate,
+          currentPeriod.endDate
+        )
+      } else {
+        // Load all transactions for manual date filtering
+        transactionsData = await transactionService.getTransactions()
+      }
+      
+      const [fundsData] = await Promise.all([
         fundsService.getFunds()
       ])
+      
       setTransactions(transactionsData)
       await loadCategories()
       await loadAllSubcategories()
       setFunds(fundsData)
+      
+      // Load current period description
+      const periodDescription = await dateRangeService.getCurrentPeriodDescription()
+      setCurrentPeriodDescription(periodDescription)
       
       // Keep source of funds as 'none' for new transactions
     } catch (error) {
@@ -119,7 +141,7 @@ export function TransactionHistory() {
     } finally {
       setLoading(false)
     }
-  }, [sourceOfFundsId, user]) // loadCategories and loadAllSubcategories are stable (useCallback with [user])
+  }, [sourceOfFundsId, user, useCustomDateRange]) // loadCategories and loadAllSubcategories are stable (useCallback with [user])
 
   useEffect(() => {
     if (user) {
@@ -658,15 +680,20 @@ export function TransactionHistory() {
       console.log('✅ Passed source of funds filter')
       
       // Date range filtering
-      if (filterDateStart && transaction.date < filterDateStart) {
-        console.log(`❌ Failed start date filter: ${transaction.date} < ${filterDateStart}`)
-        return false
+      if (!useCustomDateRange) {
+        // Use manual date range filters (custom date range is already filtered server-side)
+        if (filterDateStart && transaction.date < filterDateStart) {
+          console.log(`❌ Failed start date filter: ${transaction.date} < ${filterDateStart}`)
+          return false
+        }
+        if (filterDateEnd && transaction.date > filterDateEnd) {
+          console.log(`❌ Failed end date filter: ${transaction.date} > ${filterDateEnd}`)
+          return false
+        }
+        console.log('✅ Passed manual date range filter')
+      } else {
+        console.log('✅ Using server-side date filtering (custom date range)')
       }
-      if (filterDateEnd && transaction.date > filterDateEnd) {
-        console.log(`❌ Failed end date filter: ${transaction.date} > ${filterDateEnd}`)
-        return false
-      }
-      console.log('✅ Passed date range filter')
       
       console.log('✅ Transaction passed all filters')
       return true
@@ -683,7 +710,7 @@ export function TransactionHistory() {
       const dateB = new Date(b.date)
       return dateB.getTime() - dateA.getTime()
     })
-  }, [transactions, filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, categories, subcategories, funds, allSubcategories])
+  }, [transactions, filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, useCustomDateRange, categories, subcategories, funds, allSubcategories])
 
   // Helper function to get category name by ID (checks both main categories and subcategories)
   const getCategoryName = (categoryId: string) => {
@@ -696,6 +723,29 @@ export function TransactionHistory() {
     // Check subcategories
     const subcategory = allSubcategories.find(sub => sub.id === categoryId)
     if (subcategory) {
+      return subcategory.name
+    }
+    
+    // Return a user-friendly fallback instead of UUID
+    return 'Unknown Category'
+  }
+
+  // Helper function to get category display name with main category and subcategory
+  const getCategoryDisplayName = (categoryId: string) => {
+    // First check if it's a main category
+    const mainCategory = categories.find(cat => cat.id === categoryId)
+    if (mainCategory) {
+      return mainCategory.name
+    }
+    
+    // Check if it's a subcategory
+    const subcategory = allSubcategories.find(sub => sub.id === categoryId)
+    if (subcategory) {
+      // Find the main category for this subcategory
+      const parentCategory = categories.find(cat => cat.id === subcategory.main_category_id)
+      if (parentCategory) {
+        return `${parentCategory.name} - ${subcategory.name}`
+      }
       return subcategory.name
     }
     
@@ -724,8 +774,9 @@ export function TransactionHistory() {
            filterStatus !== 'all' || 
            filterSourceOfFunds !== 'all' || 
            filterDateStart !== '' || 
-           filterDateEnd !== ''
-  }, [filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd])
+           filterDateEnd !== '' ||
+           !useCustomDateRange
+  }, [filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, useCustomDateRange])
 
   if (loading || authLoading) {
     return (
@@ -743,7 +794,12 @@ export function TransactionHistory() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b px-6 py-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Transaction</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Transaction</h1>
+            {currentPeriodDescription && (
+              <p className="text-sm text-gray-600 mt-1">Period: {currentPeriodDescription}</p>
+            )}
+          </div>
           <div className="w-10 h-10"></div> {/* Spacer for avatar */}
         </div>
       </div>
@@ -824,13 +880,58 @@ export function TransactionHistory() {
                   <Label>Source of Funds</Label>
                   <Select value={filterSourceOfFunds} onValueChange={setFilterSourceOfFunds}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="All Sources">
+                        {filterSourceOfFunds && filterSourceOfFunds !== 'all' && (() => {
+                          const selectedFund = funds.find(f => f.id === filterSourceOfFunds);
+                          if (selectedFund) {
+                            return (
+                              <div className="flex items-center gap-2">
+                                {selectedFund.image_url ? (
+                                  <Image 
+                                    src={selectedFund.image_url} 
+                                    alt={selectedFund.name}
+                                    width={16}
+                                    height={16}
+                                    className="w-4 h-4 rounded-sm object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                  />
+                                ) : null}
+                                <div className={`w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${selectedFund.image_url ? 'hidden' : ''}`}>
+                                  {selectedFund.name.substring(0, 1).toUpperCase()}
+                                </div>
+                                {selectedFund.name}
+                              </div>
+                            );
+                          }
+                        })()}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Sources</SelectItem>
                       {funds.map((fund) => (
                         <SelectItem key={fund.id} value={fund.id}>
-                          {fund.name}
+                          <div className="flex items-center gap-2">
+                            {fund.image_url ? (
+                              <Image 
+                                src={fund.image_url} 
+                                alt={fund.name}
+                                width={16}
+                                height={16}
+                                className="w-4 h-4 rounded-sm object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${fund.image_url ? 'hidden' : ''}`}>
+                              {fund.name.substring(0, 1).toUpperCase()}
+                            </div>
+                            {fund.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -838,27 +939,42 @@ export function TransactionHistory() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Date Range</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="filter-date-start" className="text-xs">From</Label>
-                      <Input
-                        id="filter-date-start"
-                        type="date"
-                        value={filterDateStart}
-                        onChange={(e) => setFilterDateStart(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="filter-date-end" className="text-xs">To</Label>
-                      <Input
-                        id="filter-date-end"
-                        type="date"
-                        value={filterDateEnd}
-                        onChange={(e) => setFilterDateEnd(e.target.value)}
-                      />
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="use-custom-date-range"
+                      checked={useCustomDateRange}
+                      onChange={(e) => setUseCustomDateRange(e.target.checked)}
+                      className="rounded"
+                    />
+                    <Label htmlFor="use-custom-date-range">Use custom period ({currentPeriodDescription})</Label>
                   </div>
+                  
+                  {!useCustomDateRange && (
+                    <div>
+                      <Label>Manual Date Range</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label htmlFor="filter-date-start" className="text-xs">From</Label>
+                          <Input
+                            id="filter-date-start"
+                            type="date"
+                            value={filterDateStart}
+                            onChange={(e) => setFilterDateStart(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="filter-date-end" className="text-xs">To</Label>
+                          <Input
+                            id="filter-date-end"
+                            type="date"
+                            value={filterDateEnd}
+                            onChange={(e) => setFilterDateEnd(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -887,6 +1003,7 @@ export function TransactionHistory() {
                       setFilterSourceOfFunds('all')
                       setFilterDateStart('')
                       setFilterDateEnd('')
+                      setUseCustomDateRange(true)
                     }}
                     className="flex-1"
                   >
@@ -1264,7 +1381,6 @@ export function TransactionHistory() {
                   >
                     <div className="flex justify-between items-center">
                       <div className="flex-1">
-                        <div className="font-semibold text-gray-900 text-lg mb-1">{getCategoryName(transaction.category)}</div>
                         <div className="text-sm text-gray-500 mb-1 flex items-center gap-1">
                           {(() => {
                             const fund = transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id) : null;
@@ -1294,6 +1410,7 @@ export function TransactionHistory() {
                           })()} 
                           {transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund'}
                         </div>
+                        <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryDisplayName(transaction.category)}</div>
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-xl mb-1 ${
@@ -1368,7 +1485,6 @@ export function TransactionHistory() {
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryName(transaction.category)}</div>
                         <div className="text-sm text-gray-500 mb-2 flex items-center gap-1">
                           {(() => {
                             const fund = transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id) : null;
@@ -1398,6 +1514,7 @@ export function TransactionHistory() {
                           })()} 
                           {transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund'}
                         </div>
+                        <div className="font-semibold text-gray-900 text-sm mb-1">{getCategoryDisplayName(transaction.category)}</div>
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-lg mb-1 ${

@@ -1,0 +1,214 @@
+{
+  "Marksman_Camp": [
+    {
+      "Level": 1,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": 95, "Coal": 0, "Iron": 0},
+      "ConstructionTime": "0:00:02",
+      "BuildingPower": 400
+    },
+    {
+      "Level": 2,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": 140, "Coal": 0, "Iron": 0},
+      "ConstructionTime": "0:00:09",
+      "BuildingPower": 760
+    },
+    {
+      "Level": 3,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": 645, "Coal": 0, "Iron": 0},
+      "ConstructionTime": "0:00:45",
+      "BuildingPower": 1300
+    },
+    {
+      "Level": 4,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": "1.4K", "Coal": 285, "Iron": 0},
+      "ConstructionTime": "0:02:15",
+      "BuildingPower": 2020
+    },
+    {
+      "Level": 5,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": "6K", "Coal": "1.2K", "Iron": 0},
+      "ConstructionTime": "0:04:30",
+      "BuildingPower": 3100
+    },
+    {
+      "Level": 6,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": "15K", "Coal": "3K", "Iron": 765},
+      "ConstructionTime": "0:09:00",
+      "BuildingPower": 4720
+    },
+    {
+      "Level": 7,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": "55K", "Coal": "11K", "Iron": "2.7K"},
+      "ConstructionTime": "0:18:00",
+      "BuildingPower": 7060
+    },
+    {
+      "Level": 8,
+      "Prerequisites": "Furnace Lv. 8",
+      "BuildCost": {"Meat": 0, "Wood": "100K", "Coal": "20K", "Iron": "5K"},
+      "ConstructionTime": "0:27:00",
+      "BuildingPower": 9400
+    },
+    {
+      "Level": 9,
+      "Prerequisites": "Furnace Lv. 9",
+      "BuildCost": {"Meat": 0, "Wood": "200K", "Coal": "41K", "Iron": "10K"},
+      "ConstructionTime": "0:40:30",
+      "BuildingPower": 11740
+    },
+    {
+      "Level": 10,
+      "Prerequisites": "Furnace Lv. 10",
+      "BuildCost": {"Meat": 0, "Wood": "360K", "Coal": "73K", "Iron": "18K"},
+      "ConstructionTime": "0:54:00",
+      "BuildingPower": 15140
+    },
+    {
+      "Level": 11,
+      "Prerequisites": "Furnace Lv. 11",
+      "BuildCost": {"Meat": "460K", "Wood": "460K", "Coal": "92K", "Iron": "23K"},
+      "ConstructionTime": "1:07:30",
+      "BuildingPower": 18540
+    },
+    {
+      "Level": 12,
+      "Prerequisites": "Furnace Lv. 12",
+      "BuildCost": {"Meat": "580K", "Wood": "580K", "Coal": "110K", "Iron": "29K"},
+      "ConstructionTime": "1:21:00",
+      "BuildingPower": 21940
+    },
+    {
+      "Level": 13,
+      "Prerequisites": "Furnace Lv. 13",
+      "BuildCost": {"Meat": "830K", "Wood": "830K", "Coal": "160K", "Iron": "41K"},
+      "ConstructionTime": "1:39:00",
+      "BuildingPower": 27680
+    },
+    {
+      "Level": 14,
+      "Prerequisites": "Furnace Lv. 14",
+      "BuildCost": {"Meat": "1.1M", "Wood": "1.1M", "Coal": "220K", "Iron": "55K"},
+      "ConstructionTime": "2:06:00",
+      "BuildingPower": 33420
+    },
+    {
+      "Level": 15,
+      "Prerequisites": "Furnace Lv. 15",
+      "BuildCost": {"Meat": "1.6M", "Wood": "1.6M", "Coal": "320K", "Iron": "81K"},
+      "ConstructionTime": "2:42:00",
+      "BuildingPower": 39160
+    },
+    {
+      "Level": 16,
+      "Prerequisites": "Furnace Lv. 16",
+      "BuildCost": {"Meat": "2M", "Wood": "2M", "Coal": "410K", "Iron": "100K"},
+      "ConstructionTime": "4:34:00",
+      "BuildingPower": 47240
+    },
+    {
+      "Level": 17,
+      "Prerequisites": "Furnace Lv. 17",
+      "BuildCost": {"Meat": "3.2M", "Wood": "3.2M", "Coal": "650K", "Iron": "160K"},
+      "ConstructionTime": "5:29:00",
+      "BuildingPower": 55320
+    },
+    {
+      "Level": 18,
+      "Prerequisites": "Furnace Lv. 18",
+      "BuildCost": {"Meat": "4.3M", "Wood": "4.3M", "Coal": "870K", "Iron": "210K"},
+      "ConstructionTime": "6:35:00",
+      "BuildingPower": 63400
+    },
+    {
+      "Level": 19,
+      "Prerequisites": "Furnace Lv. 19",
+      "BuildCost": {"Meat": "5.4M", "Wood": "5.4M", "Coal": "1M", "Iron": "270K"},
+      "ConstructionTime": "9:52:30",
+      "BuildingPower": 74880
+    },
+    {
+      "Level": 20,
+      "Prerequisites": "Furnace Lv. 20",
+      "BuildCost": {"Meat": "7.5M", "Wood": "7.5M", "Coal": "1.5M", "Iron": "370K"},
+      "ConstructionTime": "12:20:30",
+      "BuildingPower": 86360
+    },
+    {
+      "Level": 21,
+      "Prerequisites": "Furnace Lv. 21",
+      "BuildCost": {"Meat": "9.5M", "Wood": "9.5M", "Coal": "1.9M", "Iron": "470K"},
+      "ConstructionTime": "16:02:30",
+      "BuildingPower": 97840
+    },
+    {
+      "Level": 22,
+      "Prerequisites": "Furnace Lv. 22",
+      "BuildCost": {"Meat": "12M", "Wood": "12M", "Coal": "2.5M", "Iron": "630K"},
+      "ConstructionTime": "1d 00:04:00",
+      "BuildingPower": 115060
+    },
+    {
+      "Level": 23,
+      "Prerequisites": "Furnace Lv. 23",
+      "BuildCost": {"Meat": "15M", "Wood": "15M", "Coal": "3.1M", "Iron": "490K"},
+      "ConstructionTime": "1d 09:42:00",
+      "BuildingPower": 132280
+    },
+    {
+      "Level": 24,
+      "Prerequisites": "Furnace Lv. 24",
+      "BuildCost": {"Meat": "21M", "Wood": "21M", "Coal": "4.2M", "Iron": "1M"},
+      "ConstructionTime": "1d 23:11:00",
+      "BuildingPower": 149500
+    },
+    {
+      "Level": 25,
+      "Prerequisites": "Furnace Lv. 25",
+      "BuildCost": {"Meat": "28M", "Wood": "28M", "Coal": "5.7M", "Iron": "1.4M"},
+      "ConstructionTime": "2d 18:03:00",
+      "BuildingPower": 166720
+    },
+    {
+      "Level": 26,
+      "Prerequisites": "Furnace Lv. 26",
+      "BuildCost": {"Meat": "36M", "Wood": "36M", "Coal": "7.3M", "Iron": "1.8M"},
+      "ConstructionTime": "3d 03:57:00",
+      "BuildingPower": 192020
+    },
+    {
+      "Level": 27,
+      "Prerequisites": "Furnace Lv. 27",
+      "BuildCost": {"Meat": "52M", "Wood": "52M", "Coal": "10M", "Iron": "2.6M"},
+      "ConstructionTime": "3d 19:09:00",
+      "BuildingPower": 217320
+    },
+    {
+      "Level": 28,
+      "Prerequisites": "Furnace Lv. 28",
+      "BuildCost": {"Meat": "69M", "Wood": "69M", "Coal": "13M", "Iron": "3.4M"},
+      "ConstructionTime": "4d 08:49:00",
+      "BuildingPower": 242620
+    },
+    {
+      "Level": 29,
+      "Prerequisites": "Furnace Lv. 29",
+      "BuildCost": {"Meat": "86M", "Wood": "86M", "Coal": "17M", "Iron": "4.3M"},
+      "ConstructionTime": "5d 00:33:00",
+      "BuildingPower": 267920
+    },
+    {
+      "Level": 30,
+      "Prerequisites": "Furnace Lv. 30",
+      "BuildCost": {"Meat": "100M", "Wood": "100M", "Coal": "21M", "Iron": "5.2M"},
+      "ConstructionTime": "6d 00:40:00",
+      "BuildingPower": 304700
+    }
+  ]
+}

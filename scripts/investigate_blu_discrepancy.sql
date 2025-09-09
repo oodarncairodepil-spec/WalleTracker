@@ -68,8 +68,8 @@ ORDER BY t.date DESC;
 -- 4. Calculate COMPLETE balance including internal transfers
 SELECT '\nComplete Balance Calculation:' as section;
 SELECT 
-    'BLU' as fund_name,
-    1895732 as current_balance,
+    f.name as fund_name,
+    f.current_balance,
     
     -- Regular income
     COALESCE(SUM(CASE WHEN t.type = 'income' AND t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' AND t.destination_fund_id IS NULL THEN t.amount ELSE 0 END), 0) as regular_income,
@@ -90,16 +90,19 @@ SELECT
     COALESCE(SUM(CASE WHEN t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' AND t.destination_fund_id IS NOT NULL THEN t.amount ELSE 0 END), 0) as calculated_balance,
     
     -- Difference
-    1895732 - (
+    f.current_balance - (
         COALESCE(SUM(CASE WHEN t.type = 'income' AND t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' AND t.destination_fund_id IS NULL THEN t.amount ELSE 0 END), 0) +
         COALESCE(SUM(CASE WHEN t.destination_fund_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' THEN t.amount ELSE 0 END), 0) -
         COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' AND t.destination_fund_id IS NULL THEN t.amount ELSE 0 END), 0) -
         COALESCE(SUM(CASE WHEN t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' AND t.destination_fund_id IS NOT NULL THEN t.amount ELSE 0 END), 0)
     ) as remaining_difference
     
-FROM transactions t
-WHERE (t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' OR t.destination_fund_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5')
-AND t.status = 'paid';
+FROM funds f
+CROSS JOIN transactions t
+WHERE f.id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5'
+AND (t.source_of_funds_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5' OR t.destination_fund_id = '70dbcb6f-6794-4cb8-a85f-7f24996c4eb5')
+AND t.status = 'paid'
+GROUP BY f.name, f.current_balance;
 
 -- 5. Check if there are any manual balance adjustments or initial balances
 SELECT '\nFund Creation and History:' as section;

@@ -93,8 +93,6 @@ export interface Subcategory {
   user_id: string
   main_category_id: string
   name: string
-  budget_amount: number
-  budget_period: 'monthly' | 'weekly' | 'yearly'
   is_active: boolean
   created_at?: string
   updated_at?: string
@@ -150,4 +148,62 @@ export interface ParsedImageRecord {
   error_message?: string
   created_at?: string
   updated_at?: string
+}
+
+// Budget-related interfaces
+export interface Budget {
+  id: string
+  user_id: string
+  period_start_date: string // ISO date string
+  period_end_date: string   // ISO date string
+  period_type: 'monthly' | 'weekly' | 'yearly' | 'custom'
+  main_category_id?: string
+  subcategory_id?: string
+  category_name: string
+  category_type: 'income' | 'expense'
+  budgeted_amount: number
+  actual_amount: number
+  variance_amount: number
+  variance_percentage: number
+  is_active: boolean
+  is_finalized: boolean
+  notes?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface BudgetHistory {
+  id: string
+  user_id: string
+  period_start_date: string
+  period_end_date: string
+  period_type: 'monthly' | 'weekly' | 'yearly' | 'custom'
+  period_description?: string
+  main_category_id?: string
+  subcategory_id?: string
+  category_name: string
+  category_type: 'income' | 'expense'
+  budgeted_amount: number
+  actual_amount: number
+  variance_amount: number
+  variance_percentage: number
+  performance_status: 'surplus' | 'deficit' | 'on_target'
+  notes?: string
+  finalized_at: string
+  created_at?: string
+}
+
+export interface BudgetPerformanceSummary {
+  user_id: string
+  period_start_date: string
+  period_end_date: string
+  category_type: 'income' | 'expense'
+  total_categories: number
+  total_budgeted: number
+  total_actual: number
+  total_variance: number
+  avg_variance_percentage: number
+  categories_over_budget: number
+  categories_under_budget: number
+  categories_on_target: number
 }

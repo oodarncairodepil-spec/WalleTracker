@@ -28,7 +28,10 @@ import { Badge } from './ui/badge'
 import { toast } from 'sonner'
 import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { categoriesServiceFallback, type CategoryItem, type BudgetSummary, type CategoryWithSubcategories } from '../services/categories-service-fallback'
-import type { Category } from '../lib/supabase'
+import { dateRangeService } from '../services/date-range-service'
+import { transactionService } from '../services/transaction-service'
+import { budgetService } from '../services/budget-service'
+import type { Category, Subcategory, Budget } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 
 export function CategoriesPageV2() {
@@ -42,7 +45,8 @@ export function CategoriesPageV2() {
   const [type, setType] = useState<'income' | 'expense'>('expense')
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
-  const [budgetPeriod, setBudgetPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly')
+  const [budgetPeriod, setBudgetPeriod] = useState('')
+  const [availablePeriods, setAvailablePeriods] = useState<Array<{ label: string; startDate: string; endDate: string }>>([])
   const [status, setStatus] = useState<boolean>(true) // true = active, false = inactive
   const [editingItem, setEditingItem] = useState<CategoryItem | CategoryWithSubcategories | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -50,6 +54,25 @@ export function CategoriesPageV2() {
   const [itemToDelete, setItemToDelete] = useState<{item: CategoryItem, isSubcategory: boolean} | null>(null)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [viewingCategory, setViewingCategory] = useState<CategoryWithSubcategories | null>(null)
+  const [currentPeriodDescription, setCurrentPeriodDescription] = useState('')
+  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false)
+  const [budgetEditingSubcategory, setBudgetEditingSubcategory] = useState<Subcategory | null>(null)
+  const [availableBudgetPeriods, setAvailableBudgetPeriods] = useState<Array<{ label: string; startDate: string; endDate: string; budgetAmount?: number }>>([])
+
+  const loadAvailablePeriods = useCallback(async () => {
+    try {
+      const oldestDate = await transactionService.getOldestTransactionDate()
+      const periods = await dateRangeService.generateAvailablePeriods(oldestDate)
+      setAvailablePeriods(periods)
+      
+      // Set default period to the most recent one if available
+      if (periods.length > 0 && !budgetPeriod) {
+        setBudgetPeriod(`${periods[periods.length - 1].startDate}|${periods[periods.length - 1].endDate}`)
+      }
+    } catch (error) {
+      console.error('Error loading available periods:', error)
+    }
+  }, [budgetPeriod])
 
   const loadCategories = useCallback(async () => {
     if (!user) return
@@ -71,19 +94,80 @@ export function CategoriesPageV2() {
     if (!user) return
     
     try {
-      const data = await categoriesServiceFallback.getBudgetSummary(user.id)
+      // Get current period range from date range service
+      const currentPeriod = await dateRangeService.getCurrentPeriodRange()
+      const periodDescription = await dateRangeService.getCurrentPeriodDescription()
+      setCurrentPeriodDescription(periodDescription)
+      
+      const data = await categoriesServiceFallback.getBudgetSummaryByDateRange(
+        user.id,
+        currentPeriod.startDate,
+        currentPeriod.endDate
+      )
       setBudgetSummary(data)
     } catch (error) {
       console.error('Error loading budget summary:', error)
     }
   }, [user])
 
+  // Helper function to create or update budget for subcategory
+  const createOrUpdateSubcategoryBudget = async (subcategoryId: string, categoryName: string, budgetAmount: number, budgetPeriod: string) => {
+    if (!user || budgetAmount <= 0) return
+
+    try {
+      // Parse budget period to get date range
+      let periodStart: string
+      let periodEnd: string
+      let periodType: 'monthly' | 'weekly' | 'yearly' | 'custom'
+
+      if (budgetPeriod.includes('|')) {
+        // Custom date range format
+        const [start, end] = budgetPeriod.split('|')
+        periodStart = start
+        periodEnd = end
+        periodType = 'custom'
+      } else {
+        // Standard period type
+        const currentPeriod = await dateRangeService.getCurrentPeriodRange()
+        periodStart = currentPeriod.startDate
+        periodEnd = currentPeriod.endDate
+        periodType = budgetPeriod as 'monthly' | 'weekly' | 'yearly'
+      }
+
+      // Check if budget already exists for this period
+      const { data: existingBudgets } = await budgetService.getBudgetsForPeriod(periodStart, periodEnd)
+      const existingBudget = existingBudgets?.find(b => b.subcategory_id === subcategoryId)
+
+      if (existingBudget) {
+        // Update existing budget
+        await budgetService.updateBudget(existingBudget.id, {
+          budgeted_amount: budgetAmount
+        })
+      } else {
+        // Create new budget
+        await budgetService.createBudget({
+          period_start_date: periodStart,
+          period_end_date: periodEnd,
+          period_type: periodType,
+          subcategory_id: subcategoryId,
+          category_name: categoryName,
+          category_type: 'expense',
+          budgeted_amount: budgetAmount
+        })
+      }
+    } catch (error) {
+      console.error('Error managing subcategory budget:', error)
+      throw error
+    }
+  }
+
   useEffect(() => {
     if (user) {
       loadCategories()
       loadBudgetSummary()
+      loadAvailablePeriods()
     }
-  }, [user, loadCategories, loadBudgetSummary])
+  }, [user, loadCategories, loadBudgetSummary, loadAvailablePeriods])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,8 +188,6 @@ export function CategoriesPageV2() {
           user.id,
           selectedMainCategoryId,
           name.trim(),
-          budgetAmountNum,
-          budgetPeriod,
           status
         )
         toast.success('Subcategory added successfully', { duration: 1000 })
@@ -116,8 +198,6 @@ export function CategoriesPageV2() {
         await categoriesServiceFallback.updateSubcategory(
           editingItem.id,
           name.trim(),
-          budgetAmountNum,
-          budgetPeriod,
           status
         )
         toast.success('Subcategory updated successfully', { duration: 1000 })
@@ -132,15 +212,139 @@ export function CategoriesPageV2() {
     }
   }
 
-  const handleEdit = (item: CategoryItem | CategoryWithSubcategories, isSubcategory: boolean) => {
-    setEditingItem(item)
+  const handleEdit = (item: CategoryItem | CategoryWithSubcategories | Category | any, isSubcategory: boolean) => {
+    // Convert the item to CategoryItem format for consistent state management
+    const categoryItem: CategoryItem = {
+      id: item.id,
+      name: item.name,
+      type: item.type || 'expense',
+      is_active: item.is_active !== undefined ? item.is_active : true,
+      isSubcategory: isSubcategory,
+      parentId: 'main_category_id' in item ? item.main_category_id : undefined
+    }
+    
+    setEditingItem(categoryItem)
     setName(item.name)
     setType(item.type || 'expense')
-    setBudgetAmount('budgetAmount' in item ? item.budgetAmount?.toString() || '' : '')
-    setBudgetPeriod('budgetPeriod' in item ? item.budgetPeriod || 'monthly' : 'monthly')
     setStatus(item.is_active !== undefined ? item.is_active : true)
     setDialogMode(isSubcategory ? 'edit-sub' : 'edit-main')
     setDialogOpen(true)
+  }
+
+  const handleBudgetEdit = async (subcategory: Subcategory) => {
+    setBudgetEditingSubcategory(subcategory)
+    setBudgetAmount('')
+    setBudgetPeriod('')
+    setBudgetDialogOpen(true)
+    
+    // Load existing budgets for this subcategory
+    await loadExistingBudgets(subcategory.id)
+  }
+
+  const loadExistingBudgets = async (subcategoryId: string) => {
+    try {
+      // Get all budgets for this subcategory by querying all periods
+      const { data: allBudgets } = await budgetService.getCurrentPeriodBudgets()
+      if (allBudgets && allBudgets.length > 0) {
+        // Filter budgets for this subcategory
+        const subcategoryBudgets = allBudgets.filter((budget: Budget) => budget.subcategory_id === subcategoryId)
+        
+        if (subcategoryBudgets.length > 0) {
+          // Sort by newest period first
+          const sortedBudgets = subcategoryBudgets.sort((a: Budget, b: Budget) => 
+            new Date(b.period_start_date).getTime() - new Date(a.period_start_date).getTime()
+          )
+          
+          // Create available periods from existing budgets
+          const budgetPeriods = sortedBudgets.map((budget: Budget) => ({
+            label: `${new Date(budget.period_start_date).toLocaleDateString('id-ID')} - ${new Date(budget.period_end_date).toLocaleDateString('id-ID')}`,
+            startDate: budget.period_start_date,
+            endDate: budget.period_end_date,
+            budgetAmount: budget.budgeted_amount
+          }))
+          
+          setAvailableBudgetPeriods(budgetPeriods)
+          
+          // Set the most recent budget as default
+          const latestBudget = sortedBudgets[0]
+          setBudgetPeriod(`${latestBudget.period_start_date}|${latestBudget.period_end_date}`)
+          setBudgetAmount(formatNumberWithSeparator(latestBudget.budgeted_amount.toString()))
+        } else {
+          // No existing budgets, clear the available periods
+          setAvailableBudgetPeriods([])
+        }
+      } else {
+        // No budgets found, clear the available periods
+        setAvailableBudgetPeriods([])
+      }
+    } catch (error) {
+      console.error('Error loading existing budgets:', error)
+      setAvailableBudgetPeriods([])
+    }
+  }
+
+  const handleBudgetPeriodChange = (periodValue: string) => {
+    setBudgetPeriod(periodValue)
+    
+    // Find the selected period in availableBudgetPeriods and set the budget amount
+    const selectedPeriod = availableBudgetPeriods.find(period => 
+      `${period.startDate}|${period.endDate}` === periodValue
+    )
+    
+    if (selectedPeriod && selectedPeriod.budgetAmount !== undefined) {
+      setBudgetAmount(formatNumberWithSeparator(selectedPeriod.budgetAmount.toString()))
+    } else {
+      setBudgetAmount('')
+    }
+  }
+
+  const formatNumberWithSeparator = (value: string) => {
+    // Remove all non-digit characters
+    const numericValue = value.replace(/\D/g, '')
+    // Add thousand separators
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
+  const handleBudgetAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedValue = formatNumberWithSeparator(e.target.value)
+    setBudgetAmount(formattedValue)
+  }
+
+  const handleBudgetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !budgetEditingSubcategory || !budgetAmount.trim() || !budgetPeriod) return
+
+    // Remove separators before parsing
+    const budgetAmountNum = parseInt(budgetAmount.replace(/\./g, ''))
+    if (budgetAmountNum <= 0) {
+      toast.error('Budget amount must be greater than 0', { duration: 1000 })
+      return
+    }
+
+    try {
+      // Find the category name for this subcategory
+      const category = categories.find(cat => 
+        cat.subcategories?.some(sub => sub.id === budgetEditingSubcategory.id)
+      )
+      const categoryName = category?.name || 'Unknown'
+
+      await createOrUpdateSubcategoryBudget(
+        budgetEditingSubcategory.id,
+        categoryName,
+        budgetAmountNum,
+        budgetPeriod
+      )
+
+      toast.success('Budget updated successfully', { duration: 1000 })
+      loadBudgetSummary()
+      setBudgetDialogOpen(false)
+      setBudgetEditingSubcategory(null)
+      setBudgetAmount('')
+      setBudgetPeriod('')
+    } catch (error) {
+      console.error('Error updating budget:', error)
+      toast.error('Failed to update budget', { duration: 1000 })
+    }
   }
 
   const handleDeleteConfirm = (item: CategoryItem | CategoryWithSubcategories, isSubcategory: boolean) => {
@@ -212,6 +416,9 @@ export function CategoriesPageV2() {
       <div className="bg-white shadow-sm border-b">
         <div className="px-6 py-4">
           <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
+          {currentPeriodDescription && (
+            <p className="text-sm text-gray-600 mt-1">Period: {currentPeriodDescription}</p>
+          )}
         </div>
       </div>
 
@@ -235,7 +442,7 @@ export function CategoriesPageV2() {
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Category name"
+                  placeholder={dialogMode === 'add-sub' || dialogMode === 'edit-sub' ? 'Subcategory name' : 'Category name'}
                   required
                 />
               </div>
@@ -291,14 +498,19 @@ export function CategoriesPageV2() {
                   
                   <div>
                     <Label htmlFor="budgetPeriod">Budget Period</Label>
-                    <Select value={budgetPeriod} onValueChange={(value: 'weekly' | 'monthly' | 'yearly') => setBudgetPeriod(value)}>
+                    <Select value={budgetPeriod} onValueChange={(value: string) => setBudgetPeriod(value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="yearly">Yearly</SelectItem>
+                        {availablePeriods.map((period, index) => {
+                          const periodValue = period.startDate === period.endDate ? 'monthly' : `${period.startDate}|${period.endDate}`;
+                          return (
+                            <SelectItem key={index} value={periodValue}>
+                              {period.label}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -441,7 +653,7 @@ export function CategoriesPageV2() {
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {viewingCategory.subcategories.map((subcategory) => {
                         const subBudget = budgetSummary?.categories?.find(budget => budget.id === subcategory.id)
-                        const budgetAmount = subBudget?.budgetAmount || subcategory.budget_amount || 0
+                        const budgetAmount = subBudget?.budgetAmount || 0
                         const spent = subBudget?.spent || 0
                         const leftover = budgetAmount - spent
                         
@@ -621,15 +833,15 @@ export function CategoriesPageV2() {
                 {expandedCategories.has(category.id) && category.subcategories && category.subcategories.length > 0 && (
                   <CardContent>
                     <div className="space-y-2">
-                      {category.subcategories.map((subcategory: Category) => {
+                      {category.subcategories.map((subcategory) => {
                         const subBudget = budgetSummary?.categories?.find((budget) => budget.id === subcategory.id)
-                        const budgetAmount = subBudget?.budgetAmount || subcategory.budget_amount || 0
+                        const budgetAmount = subBudget?.budgetAmount || 0
                         const spent = subBudget?.spent || 0
                         const leftover = budgetAmount - spent
                         
                         return (
-                          <div key={subcategory.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleEdit(subcategory as unknown as CategoryItem, true); }}>
-                            <div className="flex flex-col gap-1">
+                          <div key={subcategory.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border cursor-pointer hover:bg-gray-100">
+                            <div className="flex flex-col gap-1" onClick={(e) => { e.stopPropagation(); handleEdit(subcategory, true); }}>
                               <span className="font-medium">{subcategory.name}</span>
                               {budgetAmount >= 0 && (
                                 <div className="text-sm text-black">
@@ -637,6 +849,13 @@ export function CategoriesPageV2() {
                                 </div>
                               )}
                             </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => { e.stopPropagation(); handleBudgetEdit(subcategory); }}
+                            >
+                              Budget
+                            </Button>
                           </div>
                         )
                       })}
@@ -648,6 +867,55 @@ export function CategoriesPageV2() {
           })}
         </div>
       </div>
+
+      {/* Budget Management Dialog */}
+      <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Budget - {budgetEditingSubcategory?.name}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBudgetSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="budgetAmount">Budget Amount</Label>
+              <Input
+                 id="budgetAmount"
+                 type="text"
+                 value={budgetAmount}
+                 onChange={handleBudgetAmountChange}
+                 placeholder="Enter budget amount"
+                 required
+               />
+            </div>
+            <div>
+              <Label htmlFor="budgetPeriod">Budget Period</Label>
+              <Select value={budgetPeriod} onValueChange={handleBudgetPeriodChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableBudgetPeriods.length > 0 ? (
+                    availableBudgetPeriods.map((period) => (
+                      <SelectItem key={`${period.startDate}|${period.endDate}`} value={`${period.startDate}|${period.endDate}`}>
+                        {period.label}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      No registered periods found
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button type="button" variant="outline" onClick={() => setBudgetDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Budget</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

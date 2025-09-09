@@ -29,7 +29,8 @@ export function BottomNavbar({ activeTab, onTabChange }: BottomNavbarProps) {
       id: 'categories' as const,
       label: 'Category',
       icon: Tags
-    }
+    },
+
   ]
 
   return (

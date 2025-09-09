@@ -6,12 +6,14 @@ import { useAuth } from '../contexts/auth-context'
 import { cn } from '../lib/utils'
 import { JSONParser } from './json-parser'
 import { AIParser } from './ai-parser'
+import { SettingsDialog } from './settings-dialog'
 
 export function AvatarDropdown() {
   const { user, signOut } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [isAIParserOpen, setIsAIParserOpen] = useState(false)
   const [isJSONParserOpen, setIsJSONParserOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
@@ -89,10 +91,13 @@ export function AvatarDropdown() {
 
           {/* Menu Items */}
           <div className="py-1">
-            {/* Profile/Settings (placeholder for future) */}
+            {/* Settings */}
             <button
               className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                setIsOpen(false)
+                setIsSettingsOpen(true)
+              }}
             >
               <Settings className="w-4 h-4 mr-3 text-gray-400" />
               Settings
@@ -148,6 +153,12 @@ export function AvatarDropdown() {
           isOpen={isAIParserOpen}
           onClose={() => setIsAIParserOpen(false)} 
       />
+      
+      {/* Settings Dialog */}
+       <SettingsDialog
+         open={isSettingsOpen}
+         onOpenChange={setIsSettingsOpen}
+       />
     </div>
   )
 }

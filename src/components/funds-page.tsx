@@ -10,7 +10,7 @@ import { Label } from './ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Plus, Download } from 'lucide-react'
 import { fundsService } from '../services/funds-service'
 import { transactionService } from '../services/transaction-service'
 import type { Fund, Transaction } from '../lib/supabase'
@@ -177,6 +177,75 @@ export function FundsPage() {
     return funds
       .filter(fund => fund.status === 'Active')
       .reduce((total, fund) => total + fund.balance, 0)
+  }
+
+  const handleDownloadCSV = async (fund: Fund) => {
+    try {
+      // Fetch all transactions and filter by fund
+      const allTransactions = await transactionService.getTransactions()
+      const fundTransactions = allTransactions.filter((t: Transaction) => t.source_of_funds_id === fund.id)
+      
+      if (fundTransactions.length === 0) {
+        toast.error('No transactions found for this fund', { duration: 2000 })
+        return
+      }
+
+      // Sort transactions by date (oldest first) to calculate running balance correctly
+      const sortedTransactions = fundTransactions.sort((a: Transaction, b: Transaction) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      
+      // Calculate running balance for each transaction
+      let runningBalance = 0
+      const transactionsWithBalance = sortedTransactions.map((transaction: Transaction) => {
+        if (transaction.type === 'income') {
+          runningBalance += transaction.amount
+        } else {
+          runningBalance -= transaction.amount
+        }
+        
+        return {
+          ...transaction,
+          runningBalance
+        }
+      })
+      
+      // Keep transactions sorted by date ascending for CSV output (oldest first)
+      const csvTransactions = transactionsWithBalance
+      
+      // Create CSV content
+      const csvHeader = 'Date,Type,Amount,Description,Status,Running Balance\n'
+      const csvRows = csvTransactions.map((transaction: Transaction & { runningBalance: number }) => {
+        const date = new Date(transaction.date).toLocaleDateString('en-US', {
+          month: 'numeric',
+          day: 'numeric', 
+          year: 'numeric'
+        })
+        const type = transaction.type === 'income' ? 'Income' : 'Expense'
+        const amount = transaction.amount
+        const description = `"${transaction.description.replace(/"/g, '""')}"`
+        const status = transaction.status === 'paid' ? 'Paid' : 'Unpaid'
+        const balance = transaction.runningBalance
+        
+        return `${date},${type},${amount},${description},${status},${balance}`
+      }).join('\n')
+      
+      const csvContent = csvHeader + csvRows
+      
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `${fund.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_transactions.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast.success(`CSV exported successfully for ${fund.name}`, { duration: 2000 })
+    } catch (error) {
+      console.error('Error exporting CSV:', error)
+      toast.error('Failed to export CSV', { duration: 2000 })
+    }
   }
 
   if (loading || authLoading) {
@@ -501,7 +570,7 @@ export function FundsPage() {
                     {fundTransactions.map((transaction) => (
                       <div key={transaction.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                         <div>
-                          <p className="text-sm font-medium">{transaction.category}</p>
+                          <p className="text-sm font-medium">{transaction.description}</p>
                           <p className="text-xs text-gray-500">{new Date(transaction.date).toLocaleDateString()}</p>
                         </div>
                         <p className={`text-sm font-semibold ${
@@ -517,16 +586,22 @@ export function FundsPage() {
                 )}
               </div>
               
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
-                  Close
+              <div className="flex justify-between space-x-2 pt-4">
+                <Button variant="outline" onClick={() => handleDownloadCSV(viewingFund)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
                 </Button>
-                <Button onClick={() => {
-                  setIsDetailsDialogOpen(false)
-                  handleEdit(viewingFund)
-                }}>
-                  Edit
-                </Button>
+                <div className="flex space-x-2">
+                  <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                    Close
+                  </Button>
+                  <Button onClick={() => {
+                    setIsDetailsDialogOpen(false)
+                    handleEdit(viewingFund)
+                  }}>
+                    Edit
+                  </Button>
+                </div>
               </div>
             </div>
           )}

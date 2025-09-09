@@ -6,6 +6,7 @@ import { Homepage } from './homepage'
 import { TransactionHistory } from './transaction-history'
 import { FundsPage } from './funds-page'
 import { CategoriesPageV2 } from './categories-page-v2'
+
 import { useAuth } from '../contexts/auth-context'
 
 export function MainApp() {
@@ -26,6 +27,7 @@ export function MainApp() {
         return <FundsPage />
       case 'categories':
         return <CategoriesPageV2 />
+
       default:
         return <Homepage />
     }

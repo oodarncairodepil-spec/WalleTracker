@@ -9,6 +9,7 @@ import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
 import { categoriesServiceV2, type MainCategory, type Subcategory } from '../services/categories-service-v2'
 import { categoriesServiceFallback } from '../services/categories-service-fallback'
+import { dateRangeService } from '../services/date-range-service'
 import type { Transaction, Fund } from '../lib/supabase'
 import { useAuth } from '../contexts/auth-context'
 import { formatIDR } from '../lib/utils'
@@ -44,8 +45,47 @@ export function Homepage() {
   const [categories, setCategories] = useState<MainCategory[]>([])
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPeriodDescription, setCurrentPeriodDescription] = useState('')
 
   console.log('[HOMEPAGE DEBUG] Component render - user:', user ? 'EXISTS' : 'NULL', 'authLoading:', authLoading, 'loading:', loading)
+
+  // Function to get nearest unpaid expense date and days difference
+  const getNearestUnpaidExpense = () => {
+    if (unpaidExpenses.length === 0) return null
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Sort unpaid expenses by date (ascending)
+    const sortedExpenses = [...unpaidExpenses].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+    
+    // Find the nearest date (could be past or future)
+    let nearestExpense = sortedExpenses[0]
+    let minDifference = Math.abs(new Date(sortedExpenses[0].date).getTime() - today.getTime())
+    
+    for (const expense of sortedExpenses) {
+      const expenseDate = new Date(expense.date)
+      expenseDate.setHours(0, 0, 0, 0)
+      const difference = Math.abs(expenseDate.getTime() - today.getTime())
+      
+      if (difference < minDifference) {
+        minDifference = difference
+        nearestExpense = expense
+      }
+    }
+    
+    const nearestDate = new Date(nearestExpense.date)
+    nearestDate.setHours(0, 0, 0, 0)
+    const daysDifference = Math.ceil((nearestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    
+    return {
+      date: nearestDate,
+      daysDifference,
+      expense: nearestExpense
+    }
+  }
 
   const loadDashboardData = useCallback(async () => {
     console.log('[HOMEPAGE DEBUG] loadDashboardData called - user:', user ? 'EXISTS' : 'NULL')
@@ -58,44 +98,70 @@ export function Homepage() {
       console.log('[HOMEPAGE DEBUG] Starting to load dashboard data, setting loading to true')
       setLoading(true)
       
-      // Load funds and total balance
-      console.log('[HOMEPAGE DEBUG] Loading funds and total balance...')
-      const allFunds = await fundsService.getFunds()
-      console.log('[HOMEPAGE DEBUG] Funds loaded:', allFunds.length)
-      setFunds(allFunds)
+      // Parallelize initial data loading for better performance
+      console.log('[HOMEPAGE DEBUG] Starting parallel data loading...')
       
-      const balance = await fundsService.getTotalBalance()
+      const [
+        currentPeriod,
+        periodDescription,
+        allFunds,
+        balance,
+        categoriesWithSubsResult
+      ] = await Promise.all([
+        dateRangeService.getCurrentPeriodRange(),
+        dateRangeService.getCurrentPeriodDescription(),
+        fundsService.getFunds(),
+        fundsService.getTotalBalance(),
+        categoriesServiceV2.getCategoriesWithSubcategories(user.id, 'expense')
+      ])
+      
+      // Load unpaid expenses for current period using server-side filtering
+      const unpaidInPeriod = await transactionService.getUnpaidExpensesByDateRange(
+        currentPeriod.startDate,
+        currentPeriod.endDate
+      )
+      
+      console.log('[HOMEPAGE DEBUG] Parallel loading complete')
+      console.log('[HOMEPAGE DEBUG] Current period:', currentPeriod, 'Description:', periodDescription)
+      console.log('[HOMEPAGE DEBUG] Funds loaded:', allFunds.length)
       console.log('[HOMEPAGE DEBUG] Total balance loaded:', balance)
+      
+      // Set the loaded data
+      setCurrentPeriodDescription(periodDescription)
+      setFunds(allFunds)
       setTotalBalance(balance)
       
-      // Load categories with subcategories
-       console.log('[HOMEPAGE DEBUG] Loading categories with subcategories...')
-       const categoriesWithSubsResult = await categoriesServiceV2.getCategoriesWithSubcategories(user.id, 'expense')
-       
+      // Process categories
       if (categoriesWithSubsResult.error) {
         console.error('Error loading categories with subcategories:', categoriesWithSubsResult.error)
       } else {
         const categoriesWithSubs = categoriesWithSubsResult.data || []
-        
-        // Extract main categories and all subcategories for backward compatibility
         setCategories(categoriesWithSubs)
         const allSubs = categoriesWithSubs.flatMap(cat => cat.subcategories)
         setAllSubcategories(allSubs)
       }
       
-      // Load unpaid expenses
-      console.log('[HOMEPAGE DEBUG] Loading unpaid expenses...')
-      const unpaid = await transactionService.getUnpaidExpenses()
-      console.log('[HOMEPAGE DEBUG] Unpaid expenses loaded:', unpaid)
-      setUnpaidExpenses(unpaid)
+      console.log('[HOMEPAGE DEBUG] Unpaid expenses loaded:', unpaidInPeriod.length, 'for current period')
+      setUnpaidExpenses(unpaidInPeriod)
       
-      const unpaidAmount = await transactionService.getUnpaidExpensesTotal()
+      // Calculate unpaid total for current period
+      const internalTransferCategoryIds = [
+        '90eae994-67f1-426e-a8bc-ff6e2dbab51c', // Other - Internal Transfer
+        'ece52746-3984-4a1e-b8a4-dadfd916612e'  // Salary - Internal Transfer
+      ]
+      const unpaidAmount = unpaidInPeriod
+        .filter(expense => !internalTransferCategoryIds.includes(expense.category))
+        .reduce((total, expense) => total + expense.amount, 0)
       setUnpaidTotal(unpaidAmount)
       
-      // Load category budgets from database
-      console.log('[HOMEPAGE DEBUG] Loading category budgets from database...')
+      // Load category budgets for current period in parallel with other operations
+      console.log('[HOMEPAGE DEBUG] Loading category budgets for current period...')
       try {
-        const budgetSummary = await categoriesServiceFallback.getBudgetSummary(user.id)
+        const budgetSummary = await categoriesServiceFallback.getBudgetSummaryByDateRange(
+           user.id,
+           currentPeriod.startDate,
+           currentPeriod.endDate
+         )
         const budgets: CategoryBudget[] = budgetSummary.categories.map(category => ({
           id: category.id,
           category: category.name,
@@ -103,7 +169,7 @@ export function Homepage() {
           budget: category.budgetAmount,
           remaining: category.remaining
         }))
-        console.log('[HOMEPAGE DEBUG] Category budgets loaded from database:', budgets.length, 'items')
+        console.log('[HOMEPAGE DEBUG] Category budgets loaded for period:', budgets.length, 'items')
         
         // Create grouped budget structure
         if (categoriesWithSubsResult.data) {
@@ -167,6 +233,29 @@ export function Homepage() {
     return 'Unknown Category'
   }
 
+  // Helper function to get category display name with main category and subcategory
+  const getCategoryDisplayName = (categoryId: string) => {
+    // First check if it's a main category
+    const mainCategory = categories.find(cat => cat.id === categoryId)
+    if (mainCategory) {
+      return mainCategory.name
+    }
+    
+    // Check if it's a subcategory
+    const subcategory = allSubcategories.find(sub => sub.id === categoryId)
+    if (subcategory) {
+      // Find the main category for this subcategory
+      const parentCategory = categories.find(cat => cat.id === subcategory.main_category_id)
+      if (parentCategory) {
+        return `${parentCategory.name} - ${subcategory.name}`
+      }
+      return subcategory.name
+    }
+    
+    // Return a user-friendly fallback instead of UUID
+    return 'Unknown Category'
+  }
+
   useEffect(() => {
     console.log('[HOMEPAGE DEBUG] useEffect triggered - user:', user ? 'EXISTS' : 'NULL', 'authLoading:', authLoading)
     if (user) {
@@ -220,7 +309,12 @@ export function Homepage() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b px-6 py-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">WalleTracker</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">WalleTracker</h1>
+            {currentPeriodDescription && (
+              <p className="text-sm text-gray-600 mt-1">Period: {currentPeriodDescription}</p>
+            )}
+          </div>
           <div className="w-10 h-10"></div> {/* Spacer for avatar */}
         </div>
       </div>
@@ -290,31 +384,98 @@ export function Homepage() {
           <AlertCircle className="h-3 w-3 text-red-500" />
         </CardHeader>
         <CardContent className="pt-0 pb-2">
-          <div className="text-lg font-bold text-red-600">
-              {formatIDR(unpaidTotal)}
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="text-lg font-bold text-red-600">
+                {formatIDR(unpaidTotal)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {unpaidExpenses.length} pending transaction{unpaidExpenses.length !== 1 ? 's' : ''}
+              </p>
             </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {unpaidExpenses.length} pending transaction{unpaidExpenses.length !== 1 ? 's' : ''}
-          </p>
+            {(() => {
+              const nearestExpense = getNearestUnpaidExpense()
+              if (!nearestExpense) return null
+              
+              const formatDate = (date: Date) => {
+                return date.toLocaleDateString('en-GB', { 
+                  day: 'numeric', 
+                  month: 'short', 
+                  year: 'numeric' 
+                }).replace(/ /g, ' ')
+              }
+              
+              const dayText = Math.abs(nearestExpense.daysDifference) === 1 ? 'day' : 'days'
+              const daysDisplay = nearestExpense.daysDifference === 0 
+                ? 'today'
+                : nearestExpense.daysDifference > 0 
+                  ? `${nearestExpense.daysDifference} ${dayText}`
+                  : `${Math.abs(nearestExpense.daysDifference)} ${dayText} ago`
+              
+              return (
+                <div className="text-right">
+                  <div className="text-xs font-medium text-gray-700">
+                    {formatDate(nearestExpense.date)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    ({daysDisplay})
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
           
 
           
           {showUnpaidList && (
              <div className="mt-4 space-y-2">
-               {unpaidExpenses.map((transaction) => (
-                 <div key={transaction.id} className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200">
-                   <div className="flex justify-between items-start">
-                     <div className="flex-1">
-                       <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryName(transaction.category)}</div>
-                       <div className="text-sm text-gray-500 mb-2">{transaction.fund?.name || 'Unknown Fund'}</div>
-                     </div>
-                     <div className="text-right">
-                       <div className="font-bold text-lg mb-1 text-red-600">-{formatIDR(transaction.amount)}</div>
-                       <div className="text-xs text-gray-400">{new Date(transaction.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/ /g, ' ')}</div>
+               {(() => {
+                 const today = new Date()
+                 today.setHours(0, 0, 0, 0)
+                 
+                 // Sort unpaid expenses by nearest date to today
+                 const sortedExpenses = [...unpaidExpenses].sort((a, b) => {
+                   const dateA = new Date(a.date)
+                   const dateB = new Date(b.date)
+                   dateA.setHours(0, 0, 0, 0)
+                   dateB.setHours(0, 0, 0, 0)
+                   
+                   const diffA = Math.abs(dateA.getTime() - today.getTime())
+                   const diffB = Math.abs(dateB.getTime() - today.getTime())
+                   
+                   return diffA - diffB
+                 })
+                 
+                 return sortedExpenses.map((transaction) => (
+                   <div key={transaction.id} className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200">
+                     <div className="flex justify-between items-start">
+                       <div className="flex-1">
+                         <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryDisplayName(transaction.category)}</div>
+                         <div className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                           {transaction.fund?.image_url ? (
+                             <Image 
+                               alt={transaction.fund.name} 
+                               width={12} 
+                               height={12} 
+                               className="w-3 h-3 rounded-sm object-cover" 
+                               src={transaction.fund.image_url}
+                             />
+                           ) : (
+                             <div className="w-3 h-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[8px]">
+                               {(transaction.fund?.name || 'U').substring(0, 1).toUpperCase()}
+                             </div>
+                           )}
+                           {transaction.fund?.name || 'Unknown Fund'}
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <div className="font-bold text-lg mb-1 text-red-600">-{formatIDR(transaction.amount)}</div>
+                         <div className="text-xs text-gray-400">{new Date(transaction.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/ /g, ' ')}</div>
+                       </div>
                      </div>
                    </div>
-                 </div>
-               ))}
+                 ))
+               })()}
              </div>
            )}
         </CardContent>

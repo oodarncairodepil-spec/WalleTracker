@@ -17,7 +17,8 @@ export interface Subcategory {
   main_category_id: string
   name: string
   budget_amount: number
-  budget_period: 'monthly' | 'weekly' | 'yearly'
+  budget_period: 'monthly' | 'weekly' | 'yearly' | 'custom'
+  budget_period_custom?: string
   is_active: boolean
   created_at?: string
   updated_at?: string
@@ -35,7 +36,8 @@ export interface CategoryItem {
   name: string
   type: 'income' | 'expense'
   budget_amount?: number
-  budget_period?: 'monthly' | 'weekly' | 'yearly'
+  budget_period?: 'monthly' | 'weekly' | 'yearly' | 'custom'
+  budget_period_custom?: string
   is_active: boolean
   full_path: string // e.g., "Transportation > KA Bandara" or just "Transportation"
   item_type: 'main_category' | 'subcategory'

@@ -21,30 +21,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   console.log('[AUTH DEBUG] AuthProvider state initialized - user:', user, 'loading:', loading)
 
-  // Test if useEffect runs at all
   useEffect(() => {
-    console.log('[AUTH DEBUG] ===== SIMPLE useEffect TEST =====')  
-  }, [loading])
-
-  useEffect(() => {
-    console.log('[AUTH DEBUG] ===== useEffect STARTED =====', { loading, timestamp: new Date().toISOString() })
-    console.log('[AUTH DEBUG] AuthProvider useEffect started, loading:', loading)
+    console.log('[AUTH DEBUG] AuthProvider useEffect started')
     
-    console.log('[AUTH DEBUG] About to call authService.getCurrentUser()')
     // Get initial user
     authService.getCurrentUser().then((user) => {
-      console.log('[AUTH DEBUG] authService.getCurrentUser() promise resolved')
       console.log('[AUTH DEBUG] getCurrentUser resolved with user:', user ? 'USER_FOUND' : 'NO_USER')
-      if (user) {
-        console.log('[AUTH DEBUG] User details:', { id: user.id, email: user.email, created_at: user.created_at })
-      }
       setUser(user)
       setLoading(false)
-      console.log('[AUTH DEBUG] Auth state updated - user:', user ? 'SET' : 'NULL', 'loading: false')
     }).catch((error) => {
       // Handle auth session errors silently to prevent console spam
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.log('[AUTH DEBUG] getCurrentUser error:', errorMessage)
       if (!errorMessage.includes('Auth session missing') && 
           !errorMessage.includes('session_not_found') &&
           !errorMessage.includes('AuthSessionMissingError')) {
@@ -52,25 +39,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setUser(null)
       setLoading(false)
-      console.log('[AUTH DEBUG] Auth state updated after error - user: NULL, loading: false')
     })
 
     // Listen for auth changes
     const { data: { subscription } } = authService.onAuthStateChange((user) => {
       console.log('[AUTH DEBUG] Auth state change detected, user:', user ? 'USER_FOUND' : 'NO_USER')
-      if (user) {
-        console.log('[AUTH DEBUG] User details from listener:', { id: user.id, email: user.email })
-      }
       setUser(user)
       setLoading(false)
-      console.log('[AUTH DEBUG] Auth state updated from listener - user:', user ? 'SET' : 'NULL', 'loading: false')
     })
 
     return () => {
       console.log('[AUTH DEBUG] AuthProvider cleanup - unsubscribing')
       subscription.unsubscribe()
     }
-  }, [loading])
+  }, [])
 
   const signIn = async (email: string, password: string) => {
     try {

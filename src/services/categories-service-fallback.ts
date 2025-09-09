@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Category } from '../lib/supabase'
+import type { Category, Subcategory } from '../lib/supabase'
 
 // Fallback service that uses the original categories table
 // This will work until the new main_categories and subcategories tables are created
@@ -9,7 +9,7 @@ export interface CategoryWithSubcategories {
   name: string
   type: 'income' | 'expense'
   is_active: boolean
-  subcategories: Category[]
+  subcategories: Subcategory[]
 }
 
 export interface CategoryItem {
@@ -19,8 +19,6 @@ export interface CategoryItem {
   is_active: boolean
   isSubcategory: boolean
   parentId?: string
-  budgetAmount?: number
-  budgetPeriod?: 'weekly' | 'monthly' | 'yearly'
 }
 
 export interface BudgetSummary {
@@ -109,9 +107,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
            type: category.type,
            is_active: category.is_active,
            isSubcategory: false,
-           parentId: undefined,
-           budgetAmount: undefined,
-           budgetPeriod: undefined
+           parentId: undefined
          })
        });
 
@@ -123,9 +119,7 @@ const result: CategoryItem[] = [] as CategoryItem[]
            type: category.type,
            is_active: category.is_active,
            isSubcategory: true,
-           parentId: category.main_category_id,
-           budgetAmount: category.budget_amount,
-           budgetPeriod: category.budget_period
+           parentId: category.main_category_id
          })
        })
 
@@ -161,21 +155,19 @@ const result: CategoryItem[] = [] as CategoryItem[]
     userId: string,
     mainCategoryId: string,
     name: string,
-    budgetAmount?: number,
-    budgetPeriod?: 'weekly' | 'monthly' | 'yearly',
     isActive: boolean = true
   ) {
     try {
+      const insertData = {
+        user_id: userId,
+        main_category_id: mainCategoryId,
+        name,
+        is_active: isActive
+      }
+
       const { data, error } = await supabase
         .from('subcategories')
-        .insert({
-          user_id: userId,
-          main_category_id: mainCategoryId,
-          name,
-          budget_amount: budgetAmount,
-          budget_period: budgetPeriod,
-          is_active: isActive
-        })
+        .insert(insertData)
         .select()
         .single()
 
@@ -212,20 +204,14 @@ const result: CategoryItem[] = [] as CategoryItem[]
   async updateSubcategory(
     id: string,
     name: string,
-    budgetAmount?: number,
-    budgetPeriod?: 'weekly' | 'monthly' | 'yearly',
     isActive?: boolean
   ) {
     try {
       const updateData: {
         name: string;
-        budget_amount?: number;
-        budget_period?: 'weekly' | 'monthly' | 'yearly';
         is_active?: boolean;
       } = {
-        name,
-        budget_amount: budgetAmount,
-        budget_period: budgetPeriod
+        name
       }
       if (isActive !== undefined) {
         updateData.is_active = isActive
@@ -341,6 +327,74 @@ const result: CategoryItem[] = [] as CategoryItem[]
       }
     } catch (error) {
       console.error('Error getting budget summary:', error)
+      throw error
+    }
+  }
+
+  async getBudgetSummaryByDateRange(userId: string, startDate: string, endDate: string): Promise<BudgetSummary> {
+    try {
+      // Get subcategories with budgets (including zero budgets)
+      const { data: categories, error: categoriesError } = await supabase
+        .from('subcategories')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('budget_amount', 0)
+
+      if (categoriesError) throw categoriesError
+
+      // Get transactions for the specified date range
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('amount, category')
+        .eq('user_id', userId)
+        .eq('type', 'expense')
+        .gte('date', startDate)
+        .lte('date', endDate)
+
+      if (transactionsError) throw transactionsError
+
+      // Internal transfer category IDs to exclude from calculations
+      const internalTransferCategoryIds = [
+        '90eae994-67f1-426e-a8bc-ff6e2dbab51c', // Other - Internal Transfer
+        'ece52746-3984-4a1e-b8a4-dadfd916612e'  // Salary - Internal Transfer
+      ]
+
+      // Calculate spending by category
+      const spendingByCategory: { [key: string]: number } = {}
+      transactions?.forEach(transaction => {
+        if (transaction.category && !internalTransferCategoryIds.includes(transaction.category)) {
+          spendingByCategory[transaction.category] = 
+            (spendingByCategory[transaction.category] || 0) + transaction.amount
+        }
+      })
+
+      // Build budget summary
+      const categoryBudgets = categories?.map(subcategory => {
+        const spent = spendingByCategory[subcategory.id] || 0
+        const budgetAmount = subcategory.budget_amount || 0
+        const remaining = budgetAmount - spent
+        const percentage = budgetAmount > 0 ? (spent / budgetAmount) * 100 : 0
+
+        return {
+          id: subcategory.id,
+          name: subcategory.name,
+          budgetAmount,
+          spent,
+          remaining,
+          percentage
+        }
+      }) || []
+
+      const totalBudget = categoryBudgets.reduce((sum, cat) => sum + cat.budgetAmount, 0)
+      const totalSpent = categoryBudgets.reduce((sum, cat) => sum + cat.spent, 0)
+
+      return {
+        totalBudget,
+        totalSpent,
+        categories: categoryBudgets
+      }
+    } catch (error) {
+      console.error('Error getting budget summary by date range:', error)
       throw error
     }
   }

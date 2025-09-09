@@ -209,6 +209,81 @@ export class TransactionService {
     }
   }
 
+  async getTransactionsByDateRange(startDate: string, endDate: string): Promise<Transaction[]> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          fund:source_of_funds_id(id, name, balance, image_url)
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching transactions by date range:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getTransactionsByDateRange:', error)
+      return []
+    }
+  }
+
+  async getUnpaidExpensesByDateRange(startDate: string, endDate: string): Promise<Transaction[]> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          fund:source_of_funds_id(id, name, balance, image_url)
+        `)
+        .eq('status', 'unpaid')
+        .eq('type', 'expense')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching unpaid expenses by date range:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getUnpaidExpensesByDateRange:', error)
+      return []
+    }
+  }
+
+  async getOldestTransactionDate(): Promise<string | null> {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('date')
+        .order('date', { ascending: true })
+        .limit(1)
+        .single()
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No transactions found
+          return null
+        }
+        console.error('Error fetching oldest transaction date:', error)
+        throw error
+      }
+
+      return data?.date || null
+    } catch (error) {
+      console.error('Error in getOldestTransactionDate:', error)
+      return null
+    }
+  }
+
   async getCategoryTotals(): Promise<Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }>> {
     const transactions = await this.getTransactions()
     const categoryTotals: Record<string, { income: number; expense: number; type: 'income' | 'expense'; count: number }> = {}
