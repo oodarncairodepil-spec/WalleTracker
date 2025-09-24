@@ -55,3 +55,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile keyboard viewport handling */
+@supports (height: 100dvh) {
+  :root {
+    --vh: 1dvh;
+  }
+}
+
+/* Ensure dialogs are positioned above mobile keyboard */
+@media (max-width: 640px) {
+  [data-slot="dialog-content"] {
+    position: fixed !important;
+    top: 10vh !important;
+    transform: translateX(-50%) translateY(0) !important;
+    max-height: calc(90vh - env(keyboard-inset-height, 0px)) !important;
+    max-height: calc(var(--vh, 1vh) * 90 - env(keyboard-inset-height, 0px)) !important;
+  }
+  
+  /* Handle iOS Safari keyboard */
+  @supports (-webkit-touch-callout: none) {
+    [data-slot="dialog-content"] {
+      top: max(10vh, env(safe-area-inset-top, 0px)) !important;
+      max-height: calc(90vh - env(keyboard-inset-height, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
+}

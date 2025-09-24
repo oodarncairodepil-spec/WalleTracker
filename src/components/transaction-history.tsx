@@ -52,6 +52,19 @@ const fallbackCategories = {
   ],
 }
 
+// Helper functions for text truncation
+const truncateText = (text: string, maxLength: number) => {
+  if (text.length <= maxLength) return text
+  return text.substring(0, maxLength) + '...'
+}
+
+// Character limits for different fields
+const TEXT_LIMITS = {
+  NOTE: 25,
+  FUND_NAME: 20,
+  CATEGORY: 30
+}
+
 export function TransactionHistory() {
   const { user, loading: authLoading } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -1457,9 +1470,9 @@ export function TransactionHistory() {
                             }
                             return <Wallet className="w-3 h-3" />;
                           })()} 
-                          {transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund'}
+                          {truncateText(transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund', TEXT_LIMITS.FUND_NAME)}
                         </div>
-                        <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryDisplayName(transaction.category)}</div>
+                        <div className="font-semibold text-gray-900 text-base mb-1">{truncateText(getCategoryDisplayName(transaction.category), TEXT_LIMITS.CATEGORY)}</div>
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-xl mb-1 ${
@@ -1468,7 +1481,7 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {transaction.note || 'No note'}
+                          {truncateText(transaction.note || 'No note', TEXT_LIMITS.NOTE)}
                         </div>
                       </div>
                     </div>
@@ -1580,9 +1593,9 @@ export function TransactionHistory() {
                             }
                             return <Wallet className="w-3 h-3" />;
                           })()} 
-                          {transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund'}
+                          {truncateText(transaction.source_of_funds_id ? funds.find(f => f.id === transaction.source_of_funds_id)?.name || 'Unknown Fund' : 'No Fund', TEXT_LIMITS.FUND_NAME)}
                         </div>
-                        <div className="font-semibold text-gray-900 text-sm mb-1">{getCategoryDisplayName(transaction.category)}</div>
+                        <div className="font-semibold text-gray-900 text-sm mb-1">{truncateText(getCategoryDisplayName(transaction.category), TEXT_LIMITS.CATEGORY)}</div>
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-lg mb-1 ${
@@ -1591,7 +1604,7 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {transaction.note || 'No note'}
+                          {truncateText(transaction.note || 'No note', TEXT_LIMITS.NOTE)}
                         </div>
                       </div>
                     </div>

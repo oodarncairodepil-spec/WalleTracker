@@ -26,7 +26,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { toast } from 'sonner'
-import { Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, ChevronsUpDown, Edit, MoreVertical } from 'lucide-react'
 import { categoriesServiceFallback, type CategoryItem, type BudgetSummary, type CategoryWithSubcategories } from '../services/categories-service-fallback'
 import { dateRangeService } from '../services/date-range-service'
 import { transactionService } from '../services/transaction-service'
@@ -48,8 +48,7 @@ export function CategoriesPageV2() {
   const [categoryName, setCategoryName] = useState('')
   const [categoryType, setCategoryType] = useState<'income' | 'expense'>('expense')
   const [parentCategoryId, setParentCategoryId] = useState<string>('')
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
-  const [viewingCategory, setViewingCategory] = useState<CategoryWithSubcategories | null>(null)
+
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false)
   const [budgetEditingSubcategory, setBudgetEditingSubcategory] = useState<Subcategory | null>(null)
   const [budgetAmount, setBudgetAmount] = useState('')
@@ -59,6 +58,15 @@ export function CategoriesPageV2() {
   const [currentPeriodDescription, setCurrentPeriodDescription] = useState('')
   const [isSubcategoryDetailsDialogOpen, setIsSubcategoryDetailsDialogOpen] = useState(false)
   const [viewingSubcategory, setViewingSubcategory] = useState<Subcategory | null>(null)
+  
+  // Context menu state
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
+  const [contextMenuCategory, setContextMenuCategory] = useState<CategoryWithSubcategories | null>(null)
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
+  
+  // Delete confirmation dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [categoryToDelete, setCategoryToDelete] = useState<CategoryWithSubcategories | null>(null)
 
   const loadCategories = useCallback(async () => {
     if (!user) return
@@ -149,6 +157,15 @@ export function CategoriesPageV2() {
     loadCategories()
     loadAvailablePeriods()
   }, [loadCategories, loadAvailablePeriods])
+
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer)
+      }
+    }
+  }, [longPressTimer])
 
   // Load budget summary when selected period changes
   useEffect(() => {
@@ -358,14 +375,60 @@ export function CategoriesPageV2() {
     }
   }
 
-  const handleTouchEnd = (category: CategoryWithSubcategories) => {
-    setViewingCategory(category)
-    setIsDetailsDialogOpen(true)
-  }
+
 
   const handleSubcategoryTouchEnd = (subcategory: Subcategory) => {
     setViewingSubcategory(subcategory)
     setIsSubcategoryDetailsDialogOpen(true)
+  }
+
+  // Long press handlers for category context menu
+  const handleCategoryLongPressStart = (category: CategoryWithSubcategories, e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault()
+    const timer = setTimeout(() => {
+      setContextMenuCategory(category)
+      setContextMenuOpen(true)
+    }, 500) // 500ms long press
+    setLongPressTimer(timer)
+  }
+
+  const handleCategoryLongPressEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+  }
+
+  const handleEditCategory = (category: CategoryWithSubcategories) => {
+    setEditingCategory(category as unknown as Category)
+    setIsSubcategory(false)
+    setCategoryName(category.name)
+    setCategoryType(category.type)
+    setIsDialogOpen(true)
+    setContextMenuOpen(false)
+  }
+
+  const handleDeleteCategory = (category: CategoryWithSubcategories) => {
+    setCategoryToDelete(category)
+    setDeleteConfirmOpen(true)
+    setContextMenuOpen(false)
+  }
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return
+    
+    try {
+      await categoriesServiceFallback.deleteMainCategory(categoryToDelete.id)
+      toast.success('Category deleted successfully')
+      await loadCategories()
+      await loadBudgetSummary()
+    } catch (err) {
+      console.error('Error deleting category:', err)
+      toast.error('Failed to delete category')
+    }
+    
+    setDeleteConfirmOpen(false)
+    setCategoryToDelete(null)
   }
 
   if (loading) {
@@ -391,10 +454,33 @@ export function CategoriesPageV2() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">{title}</h2>
-        <Button onClick={handleAddCategory} size="sm">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Category
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add
+              <ChevronDown className="w-4 h-4 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleAddCategory}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Category
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              // For subcategory, we need a parent category - show dialog to select one
+              const firstExpenseCategory = categories.find(cat => cat.type === 'expense')
+              if (firstExpenseCategory) {
+                handleAddSubcategory(firstExpenseCategory as any)
+              } else {
+                toast.error('Please create a main category first')
+              }
+            }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Subcategory
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       
       {categoryList.length === 0 ? (
@@ -419,29 +505,28 @@ export function CategoriesPageV2() {
             }
             
             return (
-              <Card key={category.id} className="overflow-hidden">
-                <div 
-                  className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => handleTouchEnd(category)}
-                  onTouchEnd={() => handleTouchEnd(category)}
-                >
+              <Card 
+                key={category.id} 
+                className="overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors relative" 
+                onClick={() => toggleCategory(category.id)}
+                onTouchStart={(e) => handleCategoryLongPressStart(category, e)}
+                onTouchEnd={handleCategoryLongPressEnd}
+                onMouseDown={(e) => handleCategoryLongPressStart(category, e)}
+                onMouseUp={handleCategoryLongPressEnd}
+                onMouseLeave={handleCategoryLongPressEnd}
+              >
+                <div className="p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleCategory(category.id)
-                        }}
-                        className="p-1 h-auto"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
+                    <div className="flex items-center space-x-3 flex-1">
+                      {category.subcategories && category.subcategories.length > 0 && (
+                        <div className="p-1 h-auto">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </div>
+                      )}
                       <div>
                         <h3 className="font-medium">{category.name}</h3>
                         <p className="text-sm text-gray-600">
@@ -450,57 +535,20 @@ export function CategoriesPageV2() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-3">
-                      {totalBudget > 0 && (
-                        <div className="text-right min-w-[120px]">
-                          <div className="text-sm font-medium text-gray-700">
-                            {formatCurrency(totalBudget)}
-                          </div>
-                          <div className={`text-xs font-semibold ${
-                            totalLeftover >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {totalLeftover >= 0 ? '✓ ' : '⚠ '}
-                            {formatCurrency(totalLeftover)}
-                            {totalLeftover >= 0 ? ' left' : ' over'}
-                          </div>
+                    {totalBudget > 0 && (
+                      <div className="text-right min-w-[120px]">
+                        <div className="text-sm font-medium text-gray-700">
+                          {formatCurrency(totalBudget)}
                         </div>
-                      )}
-                      
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            •••
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation()
-                            handleEdit(category as any, false)
-                          }}>
-                            Edit Category
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation()
-                            handleAddSubcategory(category as any)
-                          }}>
-                            Add Subcategory
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteConfirm(category as any, false)
-                            }}
-                            className="text-red-600"
-                          >
-                            Delete Category
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                        <div className={`text-xs font-semibold ${
+                          totalLeftover >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {totalLeftover >= 0 ? '✓ ' : '⚠ '}
+                          {formatCurrency(totalLeftover)}
+                          {totalLeftover >= 0 ? ' left' : ' over'}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -517,40 +565,15 @@ export function CategoriesPageV2() {
                           <div 
                             key={subcategory.id} 
                             className="flex items-center justify-between p-3 bg-white rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors"
-                            onClick={() => handleSubcategoryTouchEnd(subcategory)}
-                            onContextMenu={(e) => {
-                              e.preventDefault()
-                              handleEdit(subcategory, true)
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSubcategoryTouchEnd(subcategory)
                             }}
-                            onTouchStart={(e) => {
-                              const touch = e.touches[0]
-                              const startTime = Date.now()
-                              const startX = touch.clientX
-                              const startY = touch.clientY
-                              
-                              const handleTouchEnd = (endEvent: TouchEvent) => {
-                                const endTime = Date.now()
-                                const endTouch = endEvent.changedTouches[0]
-                                const endX = endTouch.clientX
-                                const endY = endTouch.clientY
-                                
-                                const distance = Math.sqrt(
-                                  Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)
-                                )
-                                const duration = endTime - startTime
-                                
-                                if (duration > 500 && distance < 10) {
-                                  e.preventDefault()
-                                  handleEdit(subcategory, true)
-                                } else if (duration < 500 && distance < 10) {
-                                  handleSubcategoryTouchEnd(subcategory)
-                                }
-                                
-                                document.removeEventListener('touchend', handleTouchEnd)
-                              }
-                              
-                              document.addEventListener('touchend', handleTouchEnd)
-                            }}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onTouchEnd={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onMouseUp={(e) => e.stopPropagation()}
+                            onMouseLeave={(e) => e.stopPropagation()}
                           >
                             <div className="flex-1">
                               <div className="font-medium">{subcategory.name}</div>
@@ -574,16 +597,7 @@ export function CategoriesPageV2() {
                                 </div>
                               )}
                               
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleBudgetEdit(subcategory)
-                                }}
-                              >
-                                Budget
-                              </Button>
+
                             </div>
                           </div>
                         )
@@ -604,60 +618,27 @@ export function CategoriesPageV2() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Categories</h1>
-          {currentPeriodDescription && (
-            <p className="text-sm text-gray-600 mt-1">
-              Current Period: {currentPeriodDescription}
-            </p>
-          )}
         </div>
-        <div className="flex items-center space-x-4">
-          {/* Budget Period Selector */}
-          <div className="flex items-center space-x-2">
-            <Label className="text-sm font-medium">Period:</Label>
-            <Select 
-              value={selectedBudgetPeriod ? `${selectedBudgetPeriod.startDate}|${selectedBudgetPeriod.endDate}` : ''} 
-              onValueChange={handleSelectedBudgetPeriodChange}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select period" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableBudgetPeriods.map((period) => (
-                  <SelectItem key={`${period.startDate}|${period.endDate}`} value={`${period.startDate}|${period.endDate}`}>
-                    {period.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add
-              <ChevronDown className="w-4 h-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleAddCategory}>
-               <Plus className="w-4 h-4 mr-2" />
-               Add Category
-             </DropdownMenuItem>
-             <DropdownMenuItem onClick={() => {
-                // For subcategory, we need a parent category - show dialog to select one
-                const firstExpenseCategory = categories.find(cat => cat.type === 'expense')
-                if (firstExpenseCategory) {
-                  handleAddSubcategory(firstExpenseCategory as any)
-                } else {
-                  toast.error('Please create a main category first')
-                }
-              }}>
-               <Plus className="w-4 h-4 mr-2" />
-               Add Subcategory
-             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        </div>
+      </div>
+      
+      {/* Budget Period Selector - moved below Categories heading */}
+      <div className="flex items-center space-x-2">
+        <Label className="text-sm font-medium">Period:</Label>
+        <Select 
+          value={selectedBudgetPeriod ? `${selectedBudgetPeriod.startDate}|${selectedBudgetPeriod.endDate}` : ''} 
+          onValueChange={handleSelectedBudgetPeriodChange}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Select period" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableBudgetPeriods.map((period) => (
+              <SelectItem key={`${period.startDate}|${period.endDate}`} value={`${period.startDate}|${period.endDate}`}>
+                {period.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {budgetSummary && (
@@ -763,121 +744,13 @@ export function CategoriesPageV2() {
         </DialogContent>
       </Dialog>
 
-      {/* Category Details Dialog */}
-      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Category Details</DialogTitle>
-          </DialogHeader>
-          {viewingCategory && (
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div>
-                  <h3 className="font-semibold text-lg">{viewingCategory.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {viewingCategory.type === 'expense' ? 'Expense' : 'Income'} • {viewingCategory.subcategories?.length || 0} subcategories
-                  </p>
-                </div>
-              </div>
-              
-              {(() => {
-                // Use main category budget data for dialog display
-                const mainCategoryBudget = budgetSummary?.mainCategories?.find(budget => budget.id === viewingCategory.id)
-                const totalBudget = mainCategoryBudget?.budgetAmount || 0
-                const totalSpent = mainCategoryBudget?.spent || 0
-                const totalLeftover = totalBudget - totalSpent
-                
-                // Helper function to format currency with thousand separators
-                const formatCurrency = (amount: number) => {
-                  return `Rp ${Math.abs(amount).toLocaleString('id-ID')}`
-                }
-                
-                return totalBudget > 0 ? (
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Total Budget</Label>
-                      <p className="text-lg font-bold">{formatCurrency(totalBudget)}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Spent</Label>
-                      <p className="text-lg font-bold">{formatCurrency(totalSpent)}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Remaining</Label>
-                      <p className={`text-lg font-bold ${totalLeftover >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(totalLeftover)}
-                      </p>
-                    </div>
-                  </div>
-                ) : null
-              })()} 
-              
-              {viewingCategory.subcategories && viewingCategory.subcategories.length > 0 && (
-                <div>
-                  <Label className="text-sm font-medium text-gray-600 mb-2 block">Subcategories</Label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {viewingCategory.subcategories.map((subcategory) => {
-                      const subBudget = budgetSummary?.categories?.find(budget => budget.id === subcategory.id)
-                      const budgetAmount = subBudget?.budgetAmount || 0
-                      const spent = subBudget?.spent || 0
-                      const leftover = budgetAmount - spent
-                      
-                      // Helper function to format currency with thousand separators
-                      const formatCurrency = (amount: number) => {
-                        return `Rp ${Math.abs(amount).toLocaleString('id-ID')}`
-                      }
-                      
-                      return (
-                        <Card key={subcategory.id} className="p-3">
-                          <div className="flex justify-between items-center">
-                            <div className="flex-1">
-                              <p className="font-medium">{subcategory.name}</p>
-                              {budgetAmount > 0 && (
-                                <p className="text-sm text-gray-600">
-                                  Budget: {formatCurrency(budgetAmount)}
-                                </p>
-                              )}
-                            </div>
-                            {(budgetAmount > 0 || spent > 0) && (
-                              <div className="text-right">
-                                <div className={`text-sm font-semibold ${
-                                  leftover >= 0 ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                  {leftover >= 0 ? '✓ ' : '⚠ '}
-                                  {formatCurrency(leftover)}
-                                  {leftover >= 0 ? ' left' : ' over'}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
-                  Close
-                </Button>
-                <Button onClick={() => {
-                  setIsDetailsDialogOpen(false)
-                  handleEdit(viewingCategory as any, false)
-                }}>
-                  Edit
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
 
       {/* Subcategory Details Dialog */}
       <Dialog open={isSubcategoryDetailsDialogOpen} onOpenChange={setIsSubcategoryDetailsDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Subcategory Details</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Subcategory Details</DialogTitle>
           </DialogHeader>
           {viewingSubcategory && (() => {
             const parentCategory = categories.find(cat => cat.id === viewingSubcategory.main_category_id)
@@ -903,16 +776,16 @@ export function CategoriesPageV2() {
                 </div>
                 
                 {budgetAmount > 0 && (
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="text-center sm:text-left">
                       <Label className="text-sm font-medium text-gray-600">Budget</Label>
                       <p className="text-lg font-bold">{formatCurrency(budgetAmount)}</p>
                     </div>
-                    <div>
+                    <div className="text-center sm:text-left">
                       <Label className="text-sm font-medium text-gray-600">Spent</Label>
                       <p className="text-lg font-bold">{formatCurrency(spent)}</p>
                     </div>
-                    <div>
+                    <div className="text-center sm:text-left">
                       <Label className="text-sm font-medium text-gray-600">Remaining</Label>
                       <p className={`text-lg font-bold ${leftover >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {formatCurrency(leftover)}
@@ -929,20 +802,31 @@ export function CategoriesPageV2() {
                   </div>
                 )}
                 
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button variant="outline" onClick={() => setIsSubcategoryDetailsDialogOpen(false)}>
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 pt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsSubcategoryDetailsDialogOpen(false)}
+                    className="w-full sm:w-auto"
+                  >
                     Close
                   </Button>
-                  <Button variant="outline" onClick={() => {
-                    setIsSubcategoryDetailsDialogOpen(false)
-                    handleBudgetEdit(viewingSubcategory)
-                  }}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsSubcategoryDetailsDialogOpen(false)
+                      handleBudgetEdit(viewingSubcategory)
+                    }}
+                    className="w-full sm:w-auto"
+                  >
                     Manage Budget
                   </Button>
-                  <Button onClick={() => {
-                    setIsSubcategoryDetailsDialogOpen(false)
-                    handleEdit(viewingSubcategory, true)
-                  }}>
+                  <Button 
+                    onClick={() => {
+                      setIsSubcategoryDetailsDialogOpen(false)
+                      handleEdit(viewingSubcategory, true)
+                    }}
+                    className="w-full sm:w-auto"
+                  >
                     Edit
                   </Button>
                 </div>
@@ -980,6 +864,64 @@ export function CategoriesPageV2() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
+
+      {/* Category Context Menu */}
+      <Dialog open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Category Options</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => contextMenuCategory && handleEditCategory(contextMenuCategory)}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Category
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={() => contextMenuCategory && handleDeleteCategory(contextMenuCategory)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Category
+            </Button>
+          </div>
+        </DialogContent>
+       </Dialog>
+
+       {/* Delete Confirmation Dialog */}
+       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+         <DialogContent className="sm:max-w-md">
+           <DialogHeader>
+             <DialogTitle>Delete Category</DialogTitle>
+           </DialogHeader>
+           <div className="space-y-4">
+             <p className="text-sm text-gray-600">
+               Are you sure you want to delete <strong>"{categoryToDelete?.name}"</strong>?
+             </p>
+             <p className="text-sm text-red-600">
+               This will also delete all its subcategories and associated budgets. This action cannot be undone.
+             </p>
+             <div className="flex justify-end space-x-2">
+               <Button
+                 variant="outline"
+                 onClick={() => setDeleteConfirmOpen(false)}
+               >
+                 Cancel
+               </Button>
+               <Button
+                 variant="destructive"
+                 onClick={confirmDeleteCategory}
+               >
+                 Delete
+               </Button>
+             </div>
+           </div>
+         </DialogContent>
+       </Dialog>
+     </div>
+   )
+ }
