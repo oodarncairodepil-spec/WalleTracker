@@ -18,6 +18,7 @@ export class TransactionService {
           *,
           fund:funds!source_of_funds_id(id, name, balance)
         `)
+        .order('date', { ascending: false })
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -176,6 +177,7 @@ export class TransactionService {
         .eq('type', 'expense')
         .eq('status', 'unpaid')
         .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Database error fetching unpaid expenses:', error)
@@ -220,6 +222,7 @@ export class TransactionService {
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Error fetching transactions by date range:', error)

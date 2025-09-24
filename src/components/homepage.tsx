@@ -319,53 +319,47 @@ export function Homepage() {
         </div>
       </div>
       
-      <div className="px-6 space-y-6">
+      <div className="px-4 space-y-3">
         {/* Total Balance Card */}
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowFundsList(!showFundsList)}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-          <CardTitle className="text-xs font-medium flex items-center gap-2">
-            {showFundsList ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-3">
+          <CardTitle className="text-xs font-medium flex items-center gap-1">
+            {showFundsList ? <ChevronUp className="w-3 h-3 text-gray-500" /> : <ChevronDown className="w-3 h-3 text-gray-500" />}
             Total Balance
           </CardTitle>
           <Wallet className="h-3 w-3 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="pt-0 pb-2">
-          <div className={`text-lg font-bold ${
+        <CardContent className="pt-1 pb-2 px-3">
+          <div className={`text-base font-bold ${
             totalBalance >= 0 ? 'text-green-600' : 'text-red-600'
           }`}>
             {formatCurrency(totalBalance)}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {funds.filter(fund => fund.status === 'Active').length} funding sources
+          <p className="text-xs text-muted-foreground">
+            {funds.filter(fund => fund.status === 'Active').length} sources
           </p>
           {showFundsList && (
-             <div className="mt-4 space-y-2">
+             <div className="mt-2 space-y-1">
                {funds.filter(fund => fund.status === 'Active').map((fund) => (
-                 <div key={fund.id} className="bg-card text-card-foreground flex flex-col gap-6 rounded-xl py-6 cursor-pointer hover:shadow-md transition-shadow border-0 shadow-sm">
-                   <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 p-1.5">
-                     <div className="flex items-center justify-between">
-                       <div className="flex items-center space-x-2">
-                         {fund.image_url ? (
-                           <Image 
-                             alt={fund.name} 
-                             width={24} 
-                             height={24} 
-                             className="w-6 h-6 rounded-md object-cover" 
-                             src={fund.image_url}
-                           />
-                         ) : (
-                           <div className="w-6 h-6 bg-gradient-to-br from-teal-500 to-teal-600 rounded-md flex items-center justify-center text-white font-bold text-xs">
-                             {fund.name.substring(0, 2).toUpperCase()}
-                           </div>
-                         )}
-                         <div className="flex-1">
-                           <div className="text-xs font-medium text-gray-800">{fund.name}</div>
+                 <div key={fund.id} className="bg-gray-50 rounded-lg p-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center space-x-2">
+                       {fund.image_url ? (
+                         <Image 
+                           alt={fund.name} 
+                           width={16} 
+                           height={16} 
+                           className="w-4 h-4 rounded object-cover" 
+                           src={fund.image_url}
+                         />
+                       ) : (
+                         <div className="w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded flex items-center justify-center text-white font-bold text-[8px]">
+                           {fund.name.substring(0, 1).toUpperCase()}
                          </div>
-                       </div>
-                       <div className="text-right">
-                         <div className="text-sm font-semibold text-gray-900">{formatIDR(fund.balance)}</div>
-                       </div>
+                       )}
+                       <div className="text-xs font-medium text-gray-800">{fund.name}</div>
                      </div>
+                     <div className="text-xs font-semibold text-gray-900">{formatIDR(fund.balance)}</div>
                    </div>
                  </div>
                ))}
@@ -376,21 +370,21 @@ export function Homepage() {
 
       {/* Unpaid Expenses Card */}
       <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowUnpaidList(!showUnpaidList)}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-          <CardTitle className="text-xs font-medium flex items-center gap-2">
-            {showUnpaidList ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-3">
+          <CardTitle className="text-xs font-medium flex items-center gap-1">
+            {showUnpaidList ? <ChevronUp className="w-3 h-3 text-gray-500" /> : <ChevronDown className="w-3 h-3 text-gray-500" />}
             Unpaid Expenses
           </CardTitle>
           <AlertCircle className="h-3 w-3 text-red-500" />
         </CardHeader>
-        <CardContent className="pt-0 pb-2">
+        <CardContent className="pt-1 pb-2 px-3">
           <div className="flex justify-between items-start">
             <div>
-              <div className="text-lg font-bold text-red-600">
+              <div className="text-base font-bold text-red-600">
                 {formatIDR(unpaidTotal)}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {unpaidExpenses.length} pending transaction{unpaidExpenses.length !== 1 ? 's' : ''}
+              <p className="text-xs text-muted-foreground">
+                {unpaidExpenses.length} pending
               </p>
             </div>
             {(() => {
@@ -428,7 +422,7 @@ export function Homepage() {
 
           
           {showUnpaidList && (
-             <div className="mt-4 space-y-2">
+             <div className="mt-2 space-y-1">
                {(() => {
                  const today = new Date()
                  today.setHours(0, 0, 0, 0)
@@ -447,30 +441,30 @@ export function Homepage() {
                  })
                  
                  return sortedExpenses.map((transaction) => (
-                   <div key={transaction.id} className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200">
-                     <div className="flex justify-between items-start">
+                   <div key={transaction.id} className="bg-gray-50 rounded-lg p-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                     <div className="flex justify-between items-center">
                        <div className="flex-1">
-                         <div className="font-semibold text-gray-900 text-base mb-1">{getCategoryDisplayName(transaction.category)}</div>
-                         <div className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                         <div className="font-medium text-gray-900 text-xs">{getCategoryDisplayName(transaction.category)}</div>
+                         <div className="text-xs text-gray-500 flex items-center gap-1">
                            {transaction.fund?.image_url ? (
                              <Image 
                                alt={transaction.fund.name} 
-                               width={12} 
-                               height={12} 
-                               className="w-3 h-3 rounded-sm object-cover" 
+                               width={10} 
+                               height={10} 
+                               className="w-2.5 h-2.5 rounded-sm object-cover" 
                                src={transaction.fund.image_url}
                              />
                            ) : (
-                             <div className="w-3 h-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[8px]">
+                             <div className="w-2.5 h-2.5 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[6px]">
                                {(transaction.fund?.name || 'U').substring(0, 1).toUpperCase()}
                              </div>
                            )}
-                           {transaction.fund?.name || 'Unknown Fund'}
+                           {transaction.fund?.name || 'Unknown'}
                          </div>
                        </div>
                        <div className="text-right">
-                         <div className="font-bold text-lg mb-1 text-red-600">-{formatIDR(transaction.amount)}</div>
-                         <div className="text-xs text-gray-400">{new Date(transaction.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/ /g, ' ')}</div>
+                         <div className="font-semibold text-xs text-red-600">-{formatIDR(transaction.amount)}</div>
+                         <div className="text-xs text-gray-400">{new Date(transaction.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).replace(/ /g, ' ')}</div>
                        </div>
                      </div>
                    </div>
@@ -483,24 +477,24 @@ export function Homepage() {
 
       {/* Category Budgets Card */}
       <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowCategoryDetails(!showCategoryDetails)}>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-          <CardTitle className="text-xs font-medium flex items-center gap-2">
-            {showCategoryDetails ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-1 px-2">
+          <CardTitle className="text-xs font-medium flex items-center gap-1">
+            {showCategoryDetails ? <ChevronUp className="w-3 h-3 text-gray-500" /> : <ChevronDown className="w-3 h-3 text-gray-500" />}
             Category Budgets
           </CardTitle>
           <Wallet className="h-3 w-3 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="pt-0 pb-2">
+        <CardContent className="pt-0 pb-1 px-2">
           {(() => {
             const totalRemaining = groupedCategoryBudgets.reduce((sum, group) => sum + group.totalRemaining, 0)
             return (
               <>
-                <div className={`text-lg font-bold ${
+                <div className={`text-base font-bold ${
                   totalRemaining >= 0 ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {formatCurrency(totalRemaining)}
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground">
                   {groupedCategoryBudgets.length} categories
                 </p>
               </>
@@ -508,36 +502,36 @@ export function Homepage() {
           })()}
           
           {showCategoryDetails && (
-            <div className="mt-4 space-y-4">
+            <div className="mt-1 space-y-1">
               {groupedCategoryBudgets.map((group) => {
                 const mainPercentage = group.totalBudget > 0 ? (group.totalSpent / group.totalBudget) * 100 : (group.totalSpent > 0 ? 100 : 0)
                 const isMainOverBudget = group.totalRemaining < 0
                 
                 return (
-                  <div key={group.mainCategory.id} className="space-y-2">
+                  <div key={group.mainCategory.id} className="space-y-1">
                     {/* Main Category */}
                     <div 
-                      className="cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                      className="cursor-pointer hover:bg-gray-50 p-1 rounded-lg transition-colors"
                       onClick={(e) => {
                         e.stopPropagation()
                         toggleCategoryExpansion(group.mainCategory.id)
                       }}
                     >
                       <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">
-                             {group.mainCategory.name}
-                           </span>
-                          {group.isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-medium">
+                            {group.mainCategory.name}
+                          </span>
+                          {group.isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </div>
-                        <Badge variant={isMainOverBudget ? 'destructive' : 'secondary'}>
+                        <Badge variant={isMainOverBudget ? 'destructive' : 'secondary'} className="text-xs px-1.5 py-0.5">
                           {formatCurrency(Math.abs(group.totalRemaining))} {isMainOverBudget ? 'over' : 'left'}
                         </Badge>
                       </div>
                       
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                         <div 
-                          className={`h-2 rounded-full transition-all ${
+                          className={`h-1.5 rounded-full transition-all ${
                             isMainOverBudget 
                               ? 'bg-red-500' 
                               : mainPercentage > 80 
@@ -548,7 +542,7 @@ export function Homepage() {
                         ></div>
                       </div>
                       
-                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
                         <span>{formatCurrency(group.totalSpent)} spent</span>
                         <span>{formatCurrency(group.totalBudget)} budget</span>
                       </div>
@@ -556,23 +550,23 @@ export function Homepage() {
                     
                     {/* Subcategories */}
                     {group.isExpanded && (
-                      <div className="ml-4 space-y-3 border-l-2 border-gray-200 pl-4">
+                      <div className="ml-2 space-y-1 border-l border-gray-200 pl-2">
                         {group.subcategories.map((budget) => {
                           const percentage = budget.budget > 0 ? (budget.spent / budget.budget) * 100 : (budget.spent > 0 ? 100 : 0)
                           const isOverBudget = budget.remaining < 0
                           
                           return (
-                            <div key={budget.id} className="space-y-2">
+                            <div key={budget.id} className="space-y-1">
                               <div className="flex justify-between items-center">
-                                <span className="text-sm">{budget.category}</span>
-                                <Badge variant={isOverBudget ? 'destructive' : 'secondary'} className="text-xs">
+                                <span className="text-xs">{budget.category}</span>
+                                <Badge variant={isOverBudget ? 'destructive' : 'secondary'} className="text-xs px-1 py-0">
                                   {formatCurrency(Math.abs(budget.remaining))} {isOverBudget ? 'over' : 'left'}
                                 </Badge>
                               </div>
                               
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div className="w-full bg-gray-200 rounded-full h-1">
                                 <div 
-                                  className={`h-1.5 rounded-full transition-all ${
+                                  className={`h-1 rounded-full transition-all ${
                                     isOverBudget 
                                       ? 'bg-red-500' 
                                       : percentage > 80 
@@ -584,8 +578,8 @@ export function Homepage() {
                               </div>
                               
                               <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>{formatCurrency(budget.spent)} spent</span>
-                                <span>{formatCurrency(budget.budget)} budget</span>
+                                <span>{formatCurrency(budget.spent)}</span>
+                                <span>{formatCurrency(budget.budget)}</span>
                               </div>
                             </div>
                           )

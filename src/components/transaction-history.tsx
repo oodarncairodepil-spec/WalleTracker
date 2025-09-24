@@ -7,11 +7,18 @@ import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Label } from './ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { Checkbox } from './ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 // Table imports removed as we're now using card layout
 import { toast } from 'sonner'
-import { Plus, Trash2, Filter, Wallet } from 'lucide-react'
+import { Plus, Trash2, Filter, Wallet, ChevronDown } from 'lucide-react'
 import Image from 'next/image'
 import { transactionService } from '../services/transaction-service'
 import { fundsService } from '../services/funds-service'
@@ -78,7 +85,7 @@ export function TransactionHistory() {
   const [filterSubcategory, setFilterSubcategory] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [filterSourceOfFunds, setFilterSourceOfFunds] = useState('all')
+  const [filterSourceOfFunds, setFilterSourceOfFunds] = useState<string[]>([])
   const [filterDateStart, setFilterDateStart] = useState('')
   const [filterDateEnd, setFilterDateEnd] = useState('')
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
@@ -314,7 +321,7 @@ export function TransactionHistory() {
         category: subcategory || category, // Use subcategory if selected, otherwise main category
         type,
         date,
-        source_of_funds_id: sourceOfFundsId === 'none' ? undefined : sourceOfFundsId,
+        source_of_funds_id: status === 'unpaid' ? undefined : (sourceOfFundsId === 'none' ? undefined : sourceOfFundsId),
         destination_fund_id: isInternalTransfer() && type === 'expense' && destinationFundId !== 'none' ? destinationFundId : undefined,
         status,
         note: note.trim() || undefined
@@ -673,11 +680,11 @@ export function TransactionHistory() {
       }
       console.log('✅ Passed status filter')
       
-      if (filterSourceOfFunds !== 'all' && transaction.source_of_funds_id !== filterSourceOfFunds) {
-        console.log(`❌ Failed source of funds filter: ${filterSourceOfFunds} vs ${transaction.source_of_funds_id}`)
-        return false
-      }
-      console.log('✅ Passed source of funds filter')
+      if (filterSourceOfFunds.length > 0 && !filterSourceOfFunds.includes(transaction.source_of_funds_id || '')) {
+      console.log(`❌ Failed source of funds filter: ${filterSourceOfFunds} vs ${transaction.source_of_funds_id}`)
+      return false
+    }
+    console.log('✅ Passed source of funds filter')
       
       // Date range filtering
       if (!useCustomDateRange) {
@@ -708,9 +715,43 @@ export function TransactionHistory() {
       // Sort by date in descending order (most recent first)
       const dateA = new Date(a.date)
       const dateB = new Date(b.date)
-      return dateB.getTime() - dateA.getTime()
+      const dateDiff = dateB.getTime() - dateA.getTime()
+      
+      // If dates are the same, sort by created_at in descending order (newest first)
+      if (dateDiff === 0) {
+        const createdAtA = new Date(a.created_at || '1970-01-01')
+        const createdAtB = new Date(b.created_at || '1970-01-01')
+        return createdAtB.getTime() - createdAtA.getTime()
+      }
+      
+      return dateDiff
     })
   }, [transactions, filterCategory, filterSubcategory, filterType, filterStatus, filterSourceOfFunds, filterDateStart, filterDateEnd, useCustomDateRange, categories, subcategories, funds, allSubcategories])
+
+  // Group transactions by date
+  const groupedTransactions = useMemo(() => {
+    const groups: { [key: string]: Transaction[] } = {}
+    
+    filteredTransactions.forEach(transaction => {
+      const dateKey = transaction.date
+      if (!groups[dateKey]) {
+        groups[dateKey] = []
+      }
+      groups[dateKey].push(transaction)
+    })
+    
+    // Sort dates in descending order (most recent first)
+    const sortedDates = Object.keys(groups).sort((a, b) => {
+      return new Date(b).getTime() - new Date(a).getTime()
+    })
+    
+    const result: { date: string; transactions: Transaction[] }[] = []
+    sortedDates.forEach(date => {
+      result.push({ date, transactions: groups[date] })
+    })
+    
+    return result
+  }, [filteredTransactions])
 
   // Helper function to get category name by ID (checks both main categories and subcategories)
   const getCategoryName = (categoryId: string) => {
@@ -772,7 +813,7 @@ export function TransactionHistory() {
            filterSubcategory !== 'all' || 
            filterType !== 'all' || 
            filterStatus !== 'all' || 
-           filterSourceOfFunds !== 'all' || 
+           filterSourceOfFunds.length > 0 || 
            filterDateStart !== '' || 
            filterDateEnd !== '' ||
            !useCustomDateRange
@@ -878,41 +919,31 @@ export function TransactionHistory() {
                 
                 <div className="space-y-2">
                   <Label>Source of Funds</Label>
-                  <Select value={filterSourceOfFunds} onValueChange={setFilterSourceOfFunds}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Sources">
-                        {filterSourceOfFunds && filterSourceOfFunds !== 'all' && (() => {
-                          const selectedFund = funds.find(f => f.id === filterSourceOfFunds);
-                          if (selectedFund) {
-                            return (
-                              <div className="flex items-center gap-2">
-                                {selectedFund.image_url ? (
-                                  <Image 
-                                    src={selectedFund.image_url} 
-                                    alt={selectedFund.name}
-                                    width={16}
-                                    height={16}
-                                    className="w-4 h-4 rounded-sm object-cover"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
-                                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                    }}
-                                  />
-                                ) : null}
-                                <div className={`w-4 h-4 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-xs ${selectedFund.image_url ? 'hidden' : ''}`}>
-                                  {selectedFund.name.substring(0, 1).toUpperCase()}
-                                </div>
-                                {selectedFund.name}
-                              </div>
-                            );
-                          }
-                        })()}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Sources</SelectItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {filterSourceOfFunds.length === 0 
+                          ? "All Sources" 
+                          : filterSourceOfFunds.length === 1
+                          ? funds.find(f => f.id === filterSourceOfFunds[0])?.name || "Select funds"
+                          : `${filterSourceOfFunds.length} sources selected`
+                        }
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56 max-h-64 overflow-y-auto">
                       {funds.map((fund) => (
-                        <SelectItem key={fund.id} value={fund.id}>
+                        <DropdownMenuCheckboxItem
+                          key={fund.id}
+                          checked={filterSourceOfFunds.includes(fund.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setFilterSourceOfFunds(prev => [...prev, fund.id]);
+                            } else {
+                              setFilterSourceOfFunds(prev => prev.filter(id => id !== fund.id));
+                            }
+                          }}
+                        >
                           <div className="flex items-center gap-2">
                             {fund.image_url ? (
                               <Image 
@@ -932,10 +963,10 @@ export function TransactionHistory() {
                             </div>
                             {fund.name}
                           </div>
-                        </SelectItem>
+                        </DropdownMenuCheckboxItem>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 
                 <div className="space-y-2">
@@ -1000,7 +1031,7 @@ export function TransactionHistory() {
                       setFilterCategory('all')
                       setFilterSubcategory('all')
                       setFilterStatus('all')
-                      setFilterSourceOfFunds('all')
+                      setFilterSourceOfFunds([])
                       setFilterDateStart('')
                       setFilterDateEnd('')
                       setUseCustomDateRange(true)
@@ -1324,11 +1355,29 @@ export function TransactionHistory() {
           ) : (
             <>
               {/* Desktop Card View */}
-              <div className="hidden md:block space-y-3 p-4">
-                {filteredTransactions.map((transaction) => (
+              <div className="hidden md:block space-y-6 p-4">
+                {groupedTransactions.map((group) => (
+                  <div key={group.date} className="space-y-3">
+                    {/* Date Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                      <h3 className="text-sm font-medium text-gray-600 px-3 py-1 bg-gray-50 rounded-full">
+                        {new Date(group.date).toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </h3>
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                    </div>
+                    {/* Transactions for this date */}
+                    {group.transactions.map((transaction) => (
                   <div 
                     key={transaction.id} 
-                    className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200"
+                    className={`bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 ${
+                      transaction.status === 'unpaid' ? 'border-2 border-red-500' : 'border border-gray-200'
+                    }`}
                     onClick={() => {
                       setViewingTransaction(transaction)
                       setIsDetailsDialogOpen(true)
@@ -1419,20 +1468,39 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {formatDate(transaction.date)}
+                          {transaction.note || 'No note'}
                         </div>
                       </div>
                     </div>
+                    </div>
+                    ))}
                   </div>
                 ))}
               </div>
               
               {/* Mobile Card View */}
-              <div className="md:hidden space-y-3 p-4">
-                {filteredTransactions.map((transaction) => (
+              <div className="md:hidden space-y-6 p-4">
+                {groupedTransactions.map((group) => (
+                  <div key={group.date} className="space-y-3">
+                    {/* Date Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                      <h3 className="text-sm font-medium text-gray-600 px-3 py-1 bg-gray-50 rounded-full">
+                        {new Date(group.date).toLocaleDateString('en-US', { 
+                          weekday: 'short', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        })}
+                      </h3>
+                      <div className="h-px bg-gray-200 flex-1"></div>
+                    </div>
+                    {/* Transactions for this date */}
+                    {group.transactions.map((transaction) => (
                   <div 
                     key={transaction.id} 
-                    className="bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200"
+                    className={`bg-white rounded-xl p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 ${
+                      transaction.status === 'unpaid' ? 'border-2 border-red-500' : 'border border-gray-200'
+                    }`}
                     onClick={() => {
                       setViewingTransaction(transaction)
                       setIsDetailsDialogOpen(true)
@@ -1523,10 +1591,12 @@ export function TransactionHistory() {
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {formatDate(transaction.date)}
+                          {transaction.note || 'No note'}
                         </div>
                       </div>
                     </div>
+                    </div>
+                    ))}
                   </div>
                 ))}
               </div>

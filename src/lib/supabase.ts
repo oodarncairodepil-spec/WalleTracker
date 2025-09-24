@@ -93,6 +93,8 @@ export interface Subcategory {
   user_id: string
   main_category_id: string
   name: string
+  budget_amount: number
+  budget_period: 'monthly' | 'weekly' | 'yearly'
   is_active: boolean
   created_at?: string
   updated_at?: string

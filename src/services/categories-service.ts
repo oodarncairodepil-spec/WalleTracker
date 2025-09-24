@@ -222,6 +222,7 @@ export const categoriesService = {
             .eq('user_id', userId)
             .eq('category_id', category.id)
             .eq('type', 'expense')
+            .eq('status', 'paid')
             .gte('date', startDate.toISOString())
             .lte('date', now.toISOString())
           

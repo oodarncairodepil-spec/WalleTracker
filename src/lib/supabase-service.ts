@@ -158,6 +158,7 @@ export const transactionService = {
       .select('*')
       .eq('category', category)
       .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
     
     return { data, error }
   },
@@ -169,6 +170,7 @@ export const transactionService = {
       .select('*')
       .eq('type', type)
       .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
     
     return { data, error }
   },
@@ -181,6 +183,7 @@ export const transactionService = {
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
     
     return { data, error }
   },
