@@ -446,20 +446,8 @@ export function Homepage() {
                        <div className="flex-1">
                          <div className="font-medium text-gray-900 text-xs">{getCategoryDisplayName(transaction.category)}</div>
                          <div className="text-xs text-gray-500 flex items-center gap-1">
-                           {transaction.fund?.image_url ? (
-                             <Image 
-                               alt={transaction.fund.name} 
-                               width={10} 
-                               height={10} 
-                               className="w-2.5 h-2.5 rounded-sm object-cover" 
-                               src={transaction.fund.image_url}
-                             />
-                           ) : (
-                             <div className="w-2.5 h-2.5 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[6px]">
-                               {(transaction.fund?.name || 'U').substring(0, 1).toUpperCase()}
-                             </div>
-                           )}
-                           {transaction.fund?.name || 'Unknown'}
+                           <div className="w-2.5 h-2.5 bg-gradient-to-br from-teal-500 to-teal-600 rounded-sm flex items-center justify-center text-white font-bold text-[6px]">N</div>
+                           {transaction.note || 'No note'}
                          </div>
                        </div>
                        <div className="text-right">
